@@ -10,11 +10,12 @@ from typing import Optional, Type
 from app.factory import Application, create_application
 
 
-
 def render_index_page(application: Optional[Application] = None) -> str:
     """Render the basic frontend page."""
     app = application or create_application()
-    base_template = (app.templates_path / "base.html").read_text(encoding="utf-8")
+    base_template = (app.templates_path / "base.html").read_text(
+        encoding="utf-8"
+    )
     content = (app.static_path / "index.html").read_text(encoding="utf-8")
     placeholders = {
         "{{ title }}": escape(app.name),
@@ -48,7 +49,6 @@ class WebRequestHandler(BaseHTTPRequestHandler):
         return
 
 
-
 def build_web_handler(application: Application) -> Type[WebRequestHandler]:
     """Create a request handler bound to an application instance."""
 
@@ -59,7 +59,6 @@ def build_web_handler(application: Application) -> Type[WebRequestHandler]:
     return Handler
 
 
-
 def create_web_server(
     host: str = "127.0.0.1",
     port: int = 8080,
@@ -68,7 +67,6 @@ def create_web_server(
     """Create a frontend preview server."""
     app = application or create_application()
     return ThreadingHTTPServer((host, port), build_web_handler(app))
-
 
 
 def run_web_frontend(

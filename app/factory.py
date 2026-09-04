@@ -75,14 +75,20 @@ def create_application(
     environment: Optional[str] = None,
 ) -> Application:
     """Create an initialized application instance."""
-    runtime_environment = environment or os.getenv(f"{ENV_PREFIX}ENV", DEFAULT_ENVIRONMENT)
+    env_name = f"{ENV_PREFIX}ENV"
+    runtime_environment = environment or os.getenv(
+        env_name,
+        DEFAULT_ENVIRONMENT,
+    )
     resolved_config_path = _resolve_config_path(config_path)
 
     config = Config()
     runtime_settings: Dict[str, Any] = {}
 
     if resolved_config_path:
-        runtime_settings.update(_apply_config_file(config, resolved_config_path))
+        runtime_settings.update(
+            _apply_config_file(config, resolved_config_path)
+        )
 
     environment_path = PROJECT_ROOT / "config" / f"{runtime_environment}.yaml"
     if environment_path.exists():
@@ -101,13 +107,15 @@ def create_application(
     return application
 
 
-
 def _resolve_config_path(config_path: Optional[str]) -> Optional[Path]:
-    candidate = Path(config_path).expanduser() if config_path else DEFAULT_CONFIG_PATH
+    candidate = (
+        Path(config_path).expanduser()
+        if config_path
+        else DEFAULT_CONFIG_PATH
+    )
     if not candidate.exists():
         return None
     return candidate.resolve()
-
 
 
 def _apply_config_file(config: Config, config_path: Path) -> Dict[str, Any]:
@@ -116,21 +124,21 @@ def _apply_config_file(config: Config, config_path: Path) -> Dict[str, Any]:
     return _apply_mapping(config, flat_payload)
 
 
-
 def _read_config_file(config_path: Path) -> Dict[str, Any]:
     suffix = config_path.suffix.lower()
     if suffix in {".yaml", ".yml"}:
         try:
             import yaml
-        except ImportError as exc:  # pragma: no cover - exercised through runtime only
-            raise RuntimeError("PyYAML is required to read YAML runtime configuration") from exc
+        except ImportError as exc:  # pragma: no cover
+            raise RuntimeError(
+                "PyYAML is required to read YAML runtime configuration"
+            ) from exc
         with config_path.open("r", encoding="utf-8") as handle:
             return yaml.safe_load(handle) or {}
     if suffix == ".json":
         with config_path.open("r", encoding="utf-8") as handle:
             return json.load(handle) or {}
     raise ValueError(f"Unsupported configuration format: {config_path.suffix}")
-
 
 
 def _flatten_mapping(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -143,7 +151,6 @@ def _flatten_mapping(data: Dict[str, Any]) -> Dict[str, Any]:
     return flattened
 
 
-
 def _apply_mapping(config: Config, payload: Dict[str, Any]) -> Dict[str, Any]:
     runtime: Dict[str, Any] = {}
     for key, value in payload.items():
@@ -152,7 +159,6 @@ def _apply_mapping(config: Config, payload: Dict[str, Any]) -> Dict[str, Any]:
         else:
             runtime[key] = value
     return runtime
-
 
 
 def _apply_environment_overrides(config: Config) -> Dict[str, Any]:
@@ -178,7 +184,6 @@ def _apply_environment_overrides(config: Config) -> Dict[str, Any]:
     return overrides
 
 
-
 def _coerce_value(value: str) -> Any:
     lowered = value.strip().lower()
     if lowered in {"true", "false"}:
@@ -189,7 +194,6 @@ def _coerce_value(value: str) -> Any:
         return float(lowered)
     except ValueError:
         return value
-
 
 
 def _ensure_runtime_directories(application: Application) -> None:
