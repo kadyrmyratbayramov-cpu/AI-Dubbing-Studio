@@ -1,0 +1,20 @@
+# Core dependencies
+numpy>=1.21.0
+pydantic>=1.8.0
+pyyaml>=5.4.0
+
+# Audio processing
+librosa>=0.9.0
+soundfile>=0.11.0
+scipy>=1.7.0
+
+# Network and utilities
+requests>=2.26.0
+
+# Development dependencies (optional)
+pytest>=6.2.0
+pytest-cov>=2.12.0
+black>=21.5b0
+flake8>=3.9.0
+isort>=5.9.0
+mypy>=0.910

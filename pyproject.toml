@@ -1,0 +1,85 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-dubbing-studio"
+version = "1.0.0"
+description = "An intelligent audio dubbing studio powered by artificial intelligence"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+    {name = "AI Dubbing Studio Team", email = "team@dubbing-studio.dev"}
+]
+keywords = [
+    "ai",
+    "dubbing",
+    "audio",
+    "voice-synthesis",
+    "text-to-speech"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Multimedia :: Video"
+]
+dependencies = [
+    "numpy>=1.21.0",
+    "pydantic>=1.8.0",
+    "pyyaml>=5.4.0",
+    "librosa>=0.9.0",
+    "soundfile>=0.11.0",
+    "scipy>=1.7.0",
+    "requests>=2.26.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.2.0",
+    "pytest-cov>=2.12.0",
+    "black>=21.5b0",
+    "flake8>=3.9.0",
+    "isort>=5.9.0",
+    "mypy>=0.910"
+]
+docs = [
+    "sphinx>=4.0.0",
+    "sphinx-rtd-theme>=0.5.0"
+]
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true

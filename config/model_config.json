@@ -1,0 +1,38 @@
+{
+  "models": {
+    "default_tts": {
+      "type": "text_to_speech",
+      "version": "1.0.0",
+      "languages": ["en"],
+      "speakers": [
+        {
+          "id": "default",
+          "name": "Default Speaker",
+          "gender": "neutral"
+        }
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "max_length": 1000
+      }
+    }
+  },
+  "voices": {
+    "en_US": {
+      "language": "English",
+      "region": "United States",
+      "speakers": ["default"]
+    },
+    "en_GB": {
+      "language": "English",
+      "region": "United Kingdom",
+      "speakers": ["default"]
+    },
+    "es_ES": {
+      "language": "Spanish",
+      "region": "Spain",
+      "speakers": ["default"]
+    }
+  }
+}

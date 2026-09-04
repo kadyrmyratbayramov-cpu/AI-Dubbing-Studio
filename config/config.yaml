@@ -1,0 +1,38 @@
+# AI Dubbing Studio v1.0 Configuration
+
+# Audio settings
+audio:
+  sample_rate: 22050
+  channels: 1
+  bit_depth: 16
+  frame_length: 2048
+  hop_length: 512
+
+# Model settings
+model:
+  model_dir: "models"
+  default_model: "default_tts"
+  default_voice: "en_US"
+  default_speaker: "default"
+  cache_models: true
+
+# Processing settings
+processing:
+  normalize_audio: true
+  remove_silence: false
+  silence_threshold: 0.01
+  fade_in_duration: 0.1
+  fade_out_duration: 0.1
+
+# Output settings
+output:
+  output_dir: "output"
+  log_dir: "logs"
+  debug: false
+
+# Dubbing settings
+dubbing:
+  language: "en"
+  target_language: "en"
+  voice_speed: 1.0
+  pitch_shift: 0.0
