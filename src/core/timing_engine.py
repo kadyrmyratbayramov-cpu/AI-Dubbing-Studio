@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Dict, List
 
-import librosa
 import numpy as np
-import soundfile as sf
 
 from src.core.types import Segment
 
@@ -30,6 +27,9 @@ class TimingEngine:
         return words / duration * 60.0
 
     def stretch_to_duration(self, input_wav: str, output_wav: str, target_duration: float) -> None:
+        import librosa
+        import soundfile as sf
+
         audio, sr = sf.read(input_wav)
         if audio.ndim > 1:
             audio = np.mean(audio, axis=1)

@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import List
 
 import numpy as np
-import soundfile as sf
 
 
 class AudioMixingEngine:
@@ -16,6 +15,8 @@ class AudioMixingEngine:
         output_wav: str,
         ducking_db: float = -10.0,
     ) -> None:
+        import soundfile as sf
+
         bg_audio, sr = sf.read(background_wav)
         if bg_audio.ndim == 1:
             bg_audio = np.stack([bg_audio, bg_audio], axis=1)

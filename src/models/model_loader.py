@@ -61,5 +61,6 @@ class ModelLoader:
 
     def clear_cache(self) -> None:
         for model in list(self.model_cache.values()):
-            self.gpu.unload_model(model.model)
+            if isinstance(model, LoadedModel):
+                self.gpu.unload_model(model.model)
         self.model_cache.clear()

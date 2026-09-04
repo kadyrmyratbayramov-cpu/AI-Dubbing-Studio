@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-import librosa
 import numpy as np
-import soundfile as sf
 
 from src.config.settings import Config
 
@@ -19,6 +17,8 @@ class AudioProcessor:
         self.sample_rate = config.sample_rate
 
     def load_audio(self, file_path: str, sr: Optional[int] = None) -> np.ndarray:
+        import librosa
+
         sample_rate = sr or self.sample_rate
         audio, _ = librosa.load(file_path, sr=sample_rate, mono=False)
         if audio.ndim > 1:
@@ -26,6 +26,8 @@ class AudioProcessor:
         return audio
 
     def save_audio(self, audio: np.ndarray, file_path: str, sr: Optional[int] = None) -> None:
+        import soundfile as sf
+
         sf.write(file_path, audio, sr or self.sample_rate)
 
     def normalize_audio(self, audio: np.ndarray) -> np.ndarray:

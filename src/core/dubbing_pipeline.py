@@ -16,9 +16,11 @@ from src.core.gpu_manager import GPUManager
 from src.core.job_store import JobStore
 from src.core.lipsync_engine import LipSyncEngine
 from src.core.mixing_engine import AudioMixingEngine
+from src.core.audio_processor import AudioProcessor
 from src.core.model_engines import DiarizationEngine, TranslationEngine, TtsEngine, WhisperEngine
 from src.core.timing_engine import TimingEngine
 from src.core.types import PipelineStatus, Segment, SegmentResult
+from src.models.voice_synthesis import VoiceSynthesis
 from src.utils.validators import validate_input_file
 
 
@@ -41,6 +43,8 @@ class DubbingPipeline:
         self.timing = TimingEngine()
         self.mixer = AudioMixingEngine()
         self.lipsync = LipSyncEngine()
+        self.audio_processor = AudioProcessor(self.config)
+        self.voice_synthesis = VoiceSynthesis(self.config)
 
         self._pause_event = threading.Event()
         self._pause_event.set()

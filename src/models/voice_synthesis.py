@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import numpy as np
-import soundfile as sf
 
 from src.config.settings import Config
 from src.core.gpu_manager import GPUManager
@@ -42,6 +41,8 @@ class VoiceSynthesis:
         tts = loaded.model
 
         tts.tts_to_file(text=text, file_path=output_path, language=language, speaker_wav=speaker_wav)
+        import soundfile as sf
+
         generated, _ = sf.read(output_path)
         if generated.ndim > 1:
             generated = np.mean(generated, axis=1)
