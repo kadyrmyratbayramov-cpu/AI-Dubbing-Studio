@@ -1,6 +1,6 @@
-"""AI models for voice synthesis and audio generation."""
+"""AI model management modules."""
 
-from src.models.voice_synthesis import VoiceSynthesis
 from src.models.model_loader import ModelLoader
+from src.models.voice_synthesis import VoiceSynthesis
 
-__all__ = ["VoiceSynthesis", "ModelLoader"]
+__all__ = ["ModelLoader", "VoiceSynthesis"]

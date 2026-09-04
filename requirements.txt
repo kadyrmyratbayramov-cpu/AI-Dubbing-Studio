@@ -1,20 +1,25 @@
 # Core dependencies
-numpy>=1.21.0
-pydantic>=1.8.0
-pyyaml>=5.4.0
+numpy>=1.23.0
+pydantic>=1.10.0
+pyyaml>=6.0
 
-# Audio processing
-librosa>=0.9.0
-soundfile>=0.11.0
-scipy>=1.7.0
+# Desktop GUI
+PyQt6>=6.6.0
 
-# Network and utilities
-requests>=2.26.0
+# Media processing
+ffmpeg-python>=0.2.0
+librosa>=0.10.0
+soundfile>=0.12.1
+scipy>=1.10.0
+pydub>=0.25.1
 
-# Development dependencies (optional)
-pytest>=6.2.0
-pytest-cov>=2.12.0
-black>=21.5b0
-flake8>=3.9.0
-isort>=5.9.0
-mypy>=0.910
+# AI/ML stack
+torch>=2.2.0
+openai-whisper>=20240930
+transformers>=4.45.0
+sentencepiece>=0.2.0
+pyannote.audio>=3.3.2
+TTS>=0.22.0
+
+# Utilities
+requests>=2.32.0

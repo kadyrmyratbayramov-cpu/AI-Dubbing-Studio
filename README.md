@@ -1,130 +1,60 @@
-# AI Dubbing Studio v1.0
+# AI Dubbing Studio
 
-An intelligent audio dubbing studio powered by artificial intelligence for automated voice synthesis and dubbing generation.
+AI Dubbing Studio is a real desktop application for large-video dubbing workflows with PyQt6 UI and disk-backed processing.
 
-## Features
+## What is implemented
 
-- **Voice Synthesis**: AI-powered text-to-speech generation
-- **Audio Processing**: Advanced audio manipulation and enhancement
-- **Dubbing Pipeline**: Complete workflow for dubbing video content
-- **Multi-language Support**: Support for multiple languages and accents
-- **Quality Control**: Built-in validation and quality assurance
+- PyQt6 desktop GUI (main window, toolbar/menu, metadata panel, controls, progress, logs, settings, history)
+- Real FFmpeg/ffprobe integration for metadata extraction, audio extraction, segmentation, merge, and final mux
+- Disk-backed segmentation pipeline for large files (manifest + checkpoints in `jobs/`)
+- Whisper STT (`tiny/base/small/medium`) with word timestamps and CUDA→CPU fallback
+- pyannote diarization integration with token-based graceful fallback
+- MarianMT translation with HuggingFace Transformers
+- Coqui XTTS-v2 synthesis with optional reference voice and CPU fallback
+- Timing sync engine (time stretching to segment durations)
+- Audio ducking mix stage for background + synthesized speech
+- Honest lip-sync status interface (`NOT AVAILABLE` unless implemented later)
+- GPU/VRAM status reporting
 
-## Project Structure
+## Install
 
-```
-AI-Dubbing-Studio/
-├── src/
-│   ├── __init__.py
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── dubbing_pipeline.py
-│   │   └── audio_processor.py
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── voice_synthesis.py
-│   │   └── model_loader.py
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   ├── audio_utils.py
-│   │   ├── text_utils.py
-│   │   └── validators.py
-│   └── config/
-│       ├── __init__.py
-│       └── settings.py
-├── config/
-│   ├── __init__.py
-│   ├── config.yaml
-│   └── model_config.json
-├── tests/
-│   ├── __init__.py
-│   ├── test_core.py
-│   ├── test_utils.py
-│   └── test_models.py
-├── pyproject.toml
-├── README.md
-├── .gitignore
-└── requirements.txt
-```
+> FFmpeg binaries must be installed and available in `PATH` (or set `FFMPEG_BINARY` and `FFPROBE_BINARY`).
 
-## Installation
-
-### Prerequisites
-
-- Python 3.8+
-- pip or poetry
-
-### Setup
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/kadyrmyratbayramov-cpu/AI-Dubbing-Studio.git
-cd AI-Dubbing-Studio
-```
-
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Or using poetry:
-```bash
-poetry install
-```
-
-## Quick Start
-
-```python
-from src.core.dubbing_pipeline import DubbingPipeline
-from src.config.settings import Config
-
-# Initialize configuration
-config = Config()
-
-# Create dubbing pipeline
-pipeline = DubbingPipeline(config)
-
-# Process audio/video
-result = pipeline.process(input_file="input.mp4")
-```
-
-## Development
-
-### Running Tests
+## Run desktop app
 
 ```bash
-python -m pytest tests/
-```
-
-### Code Style
-
-This project follows PEP 8 style guidelines. Use black for formatting:
-
-```bash
-black src/ tests/
+python -m src.main
 ```
 
 ## Configuration
 
-Configuration files are located in the `config/` directory:
+Primary settings live in `config/config.yaml` and are loaded through `Config.load()`.
 
-- `config.yaml`: Main configuration settings
-- `model_config.json`: Model-specific parameters
+Important options:
+- `whisper_model` (default `base`)
+- `tts_model` (default XTTS-v2)
+- `default_language_pairs` (e.g. `en-es`, `es-en`)
+- `force_cpu`, `max_vram_gb`
+- `huggingface_token` for diarization
 
-## Contributing
+## Job output structure
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+For each run, `jobs/<job_id>/` contains:
+- `segments/` extracted audio chunks
+- `synthesized/` synthesized and aligned chunks
+- `artifacts/transcript.json`
+- `artifacts/timing_manifest.json`
+- `checkpoint.json`
+- `segment_manifest.json`
 
-## License
+## Tests
 
-This project is licensed under the MIT License.
-
-## Support
-
-For issues and questions, please open an issue on GitHub.
+```bash
+pytest
+```

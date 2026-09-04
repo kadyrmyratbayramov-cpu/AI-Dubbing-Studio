@@ -1,38 +1,35 @@
-# AI Dubbing Studio v1.0 Configuration
+sample_rate: 22050
+extraction_sample_rate: 16000
+channels: 1
+bit_depth: 16
+segment_seconds: 45
 
-# Audio settings
-audio:
-  sample_rate: 22050
-  channels: 1
-  bit_depth: 16
-  frame_length: 2048
-  hop_length: 512
+output_dir: output
+jobs_dir: jobs
+temp_dir: tmp
+log_dir: logs
 
-# Model settings
-model:
-  model_dir: "models"
-  default_model: "default_tts"
-  default_voice: "en_US"
-  default_speaker: "default"
-  cache_models: true
+whisper_model: base
+tts_model: tts_models/multilingual/multi-dataset/xtts_v2
+tts_voice: neutral
 
-# Processing settings
-processing:
-  normalize_audio: true
-  remove_silence: false
-  silence_threshold: 0.01
-  fade_in_duration: 0.1
-  fade_out_duration: 0.1
+default_language_pairs:
+  - en-es
+  - es-en
+  - en-fr
+  - en-de
 
-# Output settings
-output:
-  output_dir: "output"
-  log_dir: "logs"
-  debug: false
+translation_model_map:
+  en-es: Helsinki-NLP/opus-mt-en-es
+  es-en: Helsinki-NLP/opus-mt-es-en
+  en-fr: Helsinki-NLP/opus-mt-en-fr
+  fr-en: Helsinki-NLP/opus-mt-fr-en
+  en-de: Helsinki-NLP/opus-mt-en-de
+  de-en: Helsinki-NLP/opus-mt-de-en
+  en-pt: Helsinki-NLP/opus-mt-en-ROMANCE
+  pt-en: Helsinki-NLP/opus-mt-ROMANCE-en
 
-# Dubbing settings
-dubbing:
-  language: "en"
-  target_language: "en"
-  voice_speed: 1.0
-  pitch_shift: 0.0
+force_cpu: false
+max_vram_gb: 6.0
+logging_level: INFO
+huggingface_token: ""

@@ -1,58 +1,91 @@
 """Application configuration settings."""
 
-import os
+from __future__ import annotations
+
 import json
-from typing import Optional, Dict, Any
+import os
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 
+@dataclass
 class Config:
-    """Main configuration class for AI Dubbing Studio."""
+    """Runtime configuration for AI Dubbing Studio."""
 
-    def __init__(self, config_file: Optional[str] = None):
-        """Initialize configuration.
+    # audio/video processing
+    sample_rate: int = 22050
+    extraction_sample_rate: int = 16000
+    channels: int = 1
+    bit_depth: int = 16
+    segment_seconds: int = 45
 
-        Args:
-            config_file: Path to configuration file (optional)
-        """
-        # Default settings
-        self.sample_rate = 22050
-        self.channels = 1
-        self.bit_depth = 16
-        self.frame_length = 2048
-        self.hop_length = 512
+    # directories
+    output_dir: str = "output"
+    jobs_dir: str = "jobs"
+    temp_dir: str = "tmp"
+    log_dir: str = "logs"
 
-        # Model settings
-        self.model_dir = "models"
-        self.default_model = "default_tts"
-        self.default_voice = "en_US"
-        self.default_speaker = "default"
+    # model settings
+    whisper_model: str = "base"
+    tts_model: str = "tts_models/multilingual/multi-dataset/xtts_v2"
+    translation_model_map: Dict[str, str] = field(
+        default_factory=lambda: {
+            "en-es": "Helsinki-NLP/opus-mt-en-es",
+            "es-en": "Helsinki-NLP/opus-mt-es-en",
+            "en-fr": "Helsinki-NLP/opus-mt-en-fr",
+            "fr-en": "Helsinki-NLP/opus-mt-fr-en",
+            "en-de": "Helsinki-NLP/opus-mt-en-de",
+            "de-en": "Helsinki-NLP/opus-mt-de-en",
+            "en-pt": "Helsinki-NLP/opus-mt-en-ROMANCE",
+            "pt-en": "Helsinki-NLP/opus-mt-ROMANCE-en",
+        }
+    )
+    default_language_pairs: List[str] = field(default_factory=lambda: ["en-es", "es-en"])
 
-        # Processing settings
-        self.normalize_audio = True
-        self.remove_silence = False
-        self.silence_threshold = 0.01
-        self.fade_in_duration = 0.1
-        self.fade_out_duration = 0.1
+    # resource settings
+    force_cpu: bool = False
+    max_vram_gb: float = 6.0
+    logging_level: str = "INFO"
 
-        # Output settings
-        self.output_dir = "output"
-        self.log_dir = "logs"
-        self.debug = False
+    # external auth
+    huggingface_token: str = ""
 
-        # Load from file if provided
-        if config_file and os.path.exists(config_file):
-            self.load_from_file(config_file)
+    # optional user preference
+    tts_voice: str = "neutral"
+
+    def __post_init__(self) -> None:
+        self.normalize_paths()
+        self.ensure_runtime_dirs()
+
+    @classmethod
+    def load(cls, config_file: Optional[str] = None) -> "Config":
+        """Load configuration from optional file or default path."""
+        default_path = Path("config/config.yaml")
+        path = Path(config_file) if config_file else default_path
+        config = cls()
+        if path.exists():
+            config.load_from_file(str(path))
+            config.normalize_paths()
+            config.ensure_runtime_dirs()
+        env_token = os.getenv("HUGGINGFACE_TOKEN")
+        if env_token:
+            config.huggingface_token = env_token
+        return config
+
+    def normalize_paths(self) -> None:
+        self.output_dir = str(Path(self.output_dir).expanduser())
+        self.jobs_dir = str(Path(self.jobs_dir).expanduser())
+        self.temp_dir = str(Path(self.temp_dir).expanduser())
+        self.log_dir = str(Path(self.log_dir).expanduser())
+
+    def ensure_runtime_dirs(self) -> None:
+        for path in (self.output_dir, self.jobs_dir, self.temp_dir, self.log_dir):
+            Path(path).mkdir(parents=True, exist_ok=True)
 
     def load_from_file(self, config_file: str) -> None:
-        """Load configuration from file.
-
-        Args:
-            config_file: Path to configuration file (YAML or JSON)
-        """
         ext = Path(config_file).suffix.lower()
-
-        if ext == ".yaml" or ext == ".yml":
+        if ext in {".yaml", ".yml"}:
             self._load_yaml(config_file)
         elif ext == ".json":
             self._load_json(config_file)
@@ -60,56 +93,73 @@ class Config:
             raise ValueError(f"Unsupported config format: {ext}")
 
     def _load_yaml(self, file_path: str) -> None:
-        """Load YAML configuration.
-
-        Args:
-            file_path: Path to YAML file
-        """
         try:
             import yaml
-            with open(file_path, 'r') as f:
-                config_dict = yaml.safe_load(f) or {}
-                self._update_from_dict(config_dict)
-        except ImportError:
-            raise ImportError("PyYAML is required to load YAML configuration")
-        except Exception as e:
-            raise RuntimeError(f"Failed to load YAML config: {str(e)}")
+        except ImportError as exc:
+            raise ImportError("PyYAML is required to load YAML configuration") from exc
+
+        with open(file_path, "r", encoding="utf-8") as file:
+            raw = yaml.safe_load(file) or {}
+        flat = self._flatten_legacy_config(raw)
+        self._update_from_dict(flat)
 
     def _load_json(self, file_path: str) -> None:
-        """Load JSON configuration.
+        with open(file_path, "r", encoding="utf-8") as file:
+            raw = json.load(file) or {}
+        flat = self._flatten_legacy_config(raw)
+        self._update_from_dict(flat)
 
-        Args:
-            file_path: Path to JSON file
-        """
-        try:
-            with open(file_path, 'r') as f:
-                config_dict = json.load(f)
-                self._update_from_dict(config_dict)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load JSON config: {str(e)}")
+    def _flatten_legacy_config(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if not any(k in data for k in ("audio", "model", "processing", "output", "dubbing")):
+            return data
+
+        flattened: Dict[str, Any] = {}
+        audio = data.get("audio", {})
+        output = data.get("output", {})
+        dubbing = data.get("dubbing", {})
+        model = data.get("model", {})
+
+        flattened.update(
+            {
+                "sample_rate": audio.get("sample_rate", self.sample_rate),
+                "channels": audio.get("channels", self.channels),
+                "bit_depth": audio.get("bit_depth", self.bit_depth),
+                "output_dir": output.get("output_dir", self.output_dir),
+                "log_dir": output.get("log_dir", self.log_dir),
+                "tts_voice": model.get("default_voice", self.tts_voice),
+            }
+        )
+        src = dubbing.get("language", "en")
+        tgt = dubbing.get("target_language", "es")
+        flattened["default_language_pairs"] = [f"{src}-{tgt}"]
+        return flattened
 
     def _update_from_dict(self, config_dict: Dict[str, Any]) -> None:
-        """Update configuration from dictionary.
-
-        Args:
-            config_dict: Configuration dictionary
-        """
         for key, value in config_dict.items():
             if hasattr(self, key):
                 setattr(self, key, value)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert configuration to dictionary.
+        return asdict(self)
 
-        Returns:
-            Configuration as dictionary
-        """
-        return {
-            key: value for key, value in self.__dict__.items()
-            if not key.startswith('_')
-        }
+    def save(self, path: str) -> None:
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with open(target, "w", encoding="utf-8") as file:
+            if target.suffix.lower() in {".yaml", ".yml"}:
+                try:
+                    import yaml
+                except ImportError as exc:
+                    raise ImportError("PyYAML is required to save YAML configuration") from exc
+                yaml.safe_dump(self.to_dict(), file, sort_keys=False)
+            else:
+                json.dump(self.to_dict(), file, indent=2)
 
-    def __repr__(self) -> str:
-        """String representation of configuration."""
-        config_dict = self.to_dict()
-        return f"Config({config_dict})"
+    def language_pairs(self) -> List[Tuple[str, str]]:
+        pairs: List[Tuple[str, str]] = []
+        for pair in self.default_language_pairs:
+            if "-" not in pair:
+                continue
+            src, tgt = pair.split("-", 1)
+            pairs.append((src, tgt))
+        return pairs

@@ -1,8 +1,15 @@
-"""Voice synthesis models and utilities."""
+"""Voice synthesis service wrapping Coqui XTTS."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 import numpy as np
-from typing import Optional, Dict, Any
+import soundfile as sf
+
 from src.config.settings import Config
+from src.core.gpu_manager import GPUManager
 from src.models.model_loader import ModelLoader
 
 
@@ -10,54 +17,44 @@ class VoiceSynthesis:
     """Handles voice synthesis and TTS generation."""
 
     def __init__(self, config: Config):
-        """Initialize voice synthesis module.
-
-        Args:
-            config: Configuration object
-        """
         self.config = config
         self.model_loader = ModelLoader(config)
-        self.models = {}
+        self.gpu = GPUManager(force_cpu=config.force_cpu)
 
     def synthesize(
         self,
         audio_data: np.ndarray,
         language: str = "en",
-        speaker: str = "default",
-        **kwargs
+        speaker: str = "neutral",
+        **kwargs: Any,
     ) -> np.ndarray:
-        """Synthesize voice from audio data.
+        text = kwargs.get("text")
+        if not text:
+            return audio_data
 
-        Args:
-            audio_data: Input audio as numpy array
-            language: Target language code
-            speaker: Speaker identifier
-            **kwargs: Additional synthesis parameters
+        output_path = kwargs.get("output_path")
+        if not output_path:
+            raise ValueError("output_path is required when synthesizing from text")
 
-        Returns:
-            Synthesized audio as numpy array
-        """
-        # Placeholder implementation
-        # In v1.0, this is a scaffold for future implementation
-        return audio_data
+        model_name = kwargs.get("model_name", self.config.tts_model)
+        speaker_wav = kwargs.get("speaker_wav")
+        loaded = self.model_loader.load(model_name, kind="tts")
+        tts = loaded.model
+
+        tts.tts_to_file(text=text, file_path=output_path, language=language, speaker_wav=speaker_wav)
+        generated, _ = sf.read(output_path)
+        if generated.ndim > 1:
+            generated = np.mean(generated, axis=1)
+        return generated.astype(np.float32)
 
     def load_model(self, model_name: str) -> None:
-        """Load a voice synthesis model.
-
-        Args:
-            model_name: Name of the model to load
-        """
-        if model_name not in self.models:
-            self.models[model_name] = self.model_loader.load(model_name)
+        self.model_loader.load(model_name, kind="tts")
 
     def get_available_voices(self) -> Dict[str, Any]:
-        """Get list of available voices.
-
-        Returns:
-            Dictionary of available voice configurations
-        """
         return {
-            "en_US": {"languages": ["English"], "speakers": []},
-            "en_GB": {"languages": ["English"], "speakers": []},
-            "es_ES": {"languages": ["Spanish"], "speakers": []},
+            "xtts_multilingual": {
+                "languages": ["en", "es", "fr", "de", "pt", "it", "nl", "tr", "ru", "pl"],
+                "speakers": ["neutral"],
+                "voice_clone_requires_reference": True,
+            }
         }

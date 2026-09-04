@@ -1,66 +1,41 @@
-"""Input validation utilities."""
+"""Input/output validation utilities."""
+
+from __future__ import annotations
 
 import os
-from typing import Any
+from pathlib import Path
 
 
 def validate_input_file(file_path: str) -> bool:
-    """Validate that input file exists and is readable.
-
-    Args:
-        file_path: Path to input file
-
-    Returns:
-        True if valid
-
-    Raises:
-        FileNotFoundError: If file does not exist
-        PermissionError: If file is not readable
-    """
-    if not os.path.exists(file_path):
+    path = Path(file_path)
+    if not path.exists():
         raise FileNotFoundError(f"Input file not found: {file_path}")
-    if not os.path.isfile(file_path):
+    if not path.is_file():
         raise ValueError(f"Path is not a file: {file_path}")
-    if not os.access(file_path, os.R_OK):
+    if not os.access(path, os.R_OK):
         raise PermissionError(f"File is not readable: {file_path}")
     return True
 
 
 def validate_output_path(file_path: str) -> bool:
-    """Validate output file path.
-
-    Args:
-        file_path: Path to output file
-
-    Returns:
-        True if valid
-
-    Raises:
-        PermissionError: If directory is not writable
-    """
-    directory = os.path.dirname(file_path)
-    if directory and not os.path.exists(directory):
-        raise FileNotFoundError(f"Output directory does not exist: {directory}")
+    path = Path(file_path)
+    directory = path.parent
+    if directory and not directory.exists():
+        directory.mkdir(parents=True, exist_ok=True)
     if directory and not os.access(directory, os.W_OK):
         raise PermissionError(f"Output directory is not writable: {directory}")
     return True
 
 
 def validate_audio_format(file_path: str) -> bool:
-    """Validate audio file format.
+    supported = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")
+    if Path(file_path).suffix.lower() not in supported:
+        raise ValueError(f"Unsupported audio format. Supported: {supported}")
+    return True
 
-    Args:
-        file_path: Path to audio file
 
-    Returns:
-        True if valid audio format
-
-    Raises:
-        ValueError: If format is not supported
-    """
-    supported_formats = ('.wav', '.mp3', '.flac', '.ogg', '.m4a')
-    if not file_path.lower().endswith(supported_formats):
-        raise ValueError(
-            f"Unsupported audio format. Supported: {supported_formats}"
-        )
+def validate_video_format(file_path: str) -> bool:
+    supported = (".mp4", ".mkv", ".mov", ".avi", ".m4v", ".webm")
+    if Path(file_path).suffix.lower() not in supported:
+        raise ValueError(f"Unsupported video format. Supported: {supported}")
     return True

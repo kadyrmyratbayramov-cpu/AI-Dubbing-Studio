@@ -1,100 +1,44 @@
 """Audio processing and manipulation utilities."""
 
+from __future__ import annotations
+
+from typing import Optional
+
+import librosa
 import numpy as np
-from typing import Tuple, Optional
+import soundfile as sf
+
 from src.config.settings import Config
 
 
 class AudioProcessor:
-    """Handles audio loading, processing, and saving."""
+    """Handles audio loading and utility transforms."""
 
     def __init__(self, config: Config):
-        """Initialize audio processor.
-
-        Args:
-            config: Configuration object
-        """
         self.config = config
         self.sample_rate = config.sample_rate
 
-    def load_audio(
-        self,
-        file_path: str,
-        sr: Optional[int] = None
-    ) -> np.ndarray:
-        """Load audio file.
+    def load_audio(self, file_path: str, sr: Optional[int] = None) -> np.ndarray:
+        sample_rate = sr or self.sample_rate
+        audio, _ = librosa.load(file_path, sr=sample_rate, mono=False)
+        if audio.ndim > 1:
+            audio = np.mean(audio, axis=0)
+        return audio
 
-        Args:
-            file_path: Path to audio file
-            sr: Sample rate (uses config default if None)
-
-        Returns:
-            Audio data as numpy array
-        """
-        try:
-            import librosa
-            sr = sr or self.sample_rate
-            audio, _ = librosa.load(file_path, sr=sr)
-            return audio
-        except ImportError:
-            raise ImportError("librosa is required for audio loading")
-        except Exception as e:
-            raise RuntimeError(f"Failed to load audio file: {str(e)}")
-
-    def save_audio(
-        self,
-        audio: np.ndarray,
-        file_path: str,
-        sr: Optional[int] = None
-    ) -> None:
-        """Save audio to file.
-
-        Args:
-            audio: Audio data as numpy array
-            file_path: Output file path
-            sr: Sample rate (uses config default if None)
-        """
-        try:
-            import soundfile as sf
-            sr = sr or self.sample_rate
-            sf.write(file_path, audio, sr)
-        except ImportError:
-            raise ImportError("soundfile is required for audio saving")
-        except Exception as e:
-            raise RuntimeError(f"Failed to save audio file: {str(e)}")
+    def save_audio(self, audio: np.ndarray, file_path: str, sr: Optional[int] = None) -> None:
+        sf.write(file_path, audio, sr or self.sample_rate)
 
     def normalize_audio(self, audio: np.ndarray) -> np.ndarray:
-        """Normalize audio to [-1, 1] range.
+        max_val = float(np.max(np.abs(audio))) if audio.size else 0.0
+        return audio / max_val if max_val > 0 else audio
 
-        Args:
-            audio: Audio data
+    def apply_fade(self, audio: np.ndarray, fade_in: int = 0, fade_out: int = 0) -> np.ndarray:
+        output = audio.astype(np.float32).copy()
+        fade_in = max(0, min(fade_in, len(output)))
+        fade_out = max(0, min(fade_out, len(output)))
 
-        Returns:
-            Normalized audio
-        """
-        max_val = np.max(np.abs(audio))
-        if max_val > 0:
-            return audio / max_val
-        return audio
-
-    def apply_fade(
-        self,
-        audio: np.ndarray,
-        fade_in: int = 0,
-        fade_out: int = 0
-    ) -> np.ndarray:
-        """Apply fade in/out effects.
-
-        Args:
-            audio: Audio data
-            fade_in: Fade in duration in samples
-            fade_out: Fade out duration in samples
-
-        Returns:
-            Audio with fade effects
-        """
         if fade_in > 0:
-            audio[:fade_in] *= np.linspace(0, 1, fade_in)
+            output[:fade_in] *= np.linspace(0.0, 1.0, fade_in)
         if fade_out > 0:
-            audio[-fade_out:] *= np.linspace(1, 0, fade_out)
-        return audio
+            output[-fade_out:] *= np.linspace(1.0, 0.0, fade_out)
+        return output
