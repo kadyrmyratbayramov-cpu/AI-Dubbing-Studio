@@ -16,14 +16,18 @@ QLineEdit, QComboBox, QTextEdit {
 }
 QPushButton {
     background-color: #3b82f6;
-    border: none;
+    border: 2px solid transparent;
     border-radius: 4px;
     padding: 8px 12px;
     color: white;
 }
 QPushButton:disabled {
-    background-color: #475569;
-    color: #94a3b8;
+    background-color: #334155;
+    color: #e2e8f0;
+}
+QPushButton:focus {
+    border-color: #ffffff;
+    background-color: #2563eb;
 }
 QProgressBar {
     border: 1px solid #334155;

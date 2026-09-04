@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Dict, List
@@ -92,8 +93,10 @@ class FFmpegWrapper:
         ]
         self._run(command)
         segment_dir = Path(output_pattern).parent
-        pattern_name = Path(output_pattern).name.replace("%04d", "")
-        return sorted(str(path) for path in segment_dir.glob(f"*{pattern_name}"))
+        pattern_name = Path(output_pattern).name
+        match_pattern = re.escape(pattern_name).replace("%04d", r"\\d{4}")
+        compiled = re.compile(f"^{match_pattern}$")
+        return sorted(str(path) for path in segment_dir.iterdir() if path.is_file() and compiled.match(path.name))
 
     def mux_video_with_audio(self, input_video: str, input_audio: str, output_video: str) -> str:
         command = [

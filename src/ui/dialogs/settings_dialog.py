@@ -40,6 +40,6 @@ class SettingsDialog(QDialog):
         self.setLayout(layout)
 
     def apply(self) -> None:
-        self.config.output_dir = self.config.resolve_path(self.output_dir.text())
-        self.config.jobs_dir = self.config.resolve_path(self.jobs_dir.text())
+        self.config.output_dir = str(self.config.resolve_path(self.output_dir.text()))
+        self.config.jobs_dir = str(self.config.resolve_path(self.jobs_dir.text()))
         self.config.segment_seconds = int(self.segment_seconds.value())

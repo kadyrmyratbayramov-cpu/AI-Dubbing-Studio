@@ -10,8 +10,9 @@ from typing import Optional, Union
 def setup_logger(name: str, log_dir: Union[Path, str], level: str = "INFO") -> logging.Logger:
     """Create or return configured logger."""
     logger = logging.getLogger(name)
-    if logger.handlers:
-        return logger
+    for handler in list(logger.handlers):
+        logger.removeHandler(handler)
+        handler.close()
 
     log_dir = Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)

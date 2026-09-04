@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 from threading import Event
@@ -25,6 +26,10 @@ from src.utils.gpu_manager import GPUManager
 from src.utils.logger import setup_logger
 
 ProgressCallback = Callable[[str, float, str], None]
+
+
+class JobCancelledError(RuntimeError):
+    """Raised when a running job is cancelled by the user."""
 
 
 class DubbingOrchestrator:
@@ -100,10 +105,14 @@ class DubbingOrchestrator:
         job_dir = Path(self.config.jobs_dir) / job_id
         audio_path = job_dir / "input_audio.wav"
         segments_dir = job_dir / "segments"
+        segment_manifest = job_dir / "segment_manifest.json"
         tts_dir = job_dir / "tts"
         output_audio = job_dir / "dubbed.wav"
         mixed_audio = job_dir / "mixed.wav"
         output_video = Path(self.config.output_dir) / f"{Path(input_video).stem}_{source_language}_{target_language}.mp4"
+        job_dir.mkdir(parents=True, exist_ok=True)
+        segments_dir.mkdir(parents=True, exist_ok=True)
+        tts_dir.mkdir(parents=True, exist_ok=True)
         output_video.parent.mkdir(parents=True, exist_ok=True)
 
         state = saved or {
@@ -121,7 +130,7 @@ class DubbingOrchestrator:
             if self.cancel_event.is_set():
                 state["status"] = "cancelled"
                 self.state_manager.save(job_id, state)
-                raise RuntimeError("Job cancelled")
+                raise JobCancelledError("Job cancelled")
 
         try:
             if stage in {"init", "failed", "cancelled"}:
@@ -148,18 +157,41 @@ class DubbingOrchestrator:
 
             if segments_dir.exists() and list(segments_dir.glob("segment_*.wav")):
                 from src.media.segment_processor import AudioSegmentRef
-                import soundfile as sf
 
                 segments = []
-                cursor = 0.0
-                for idx, path in enumerate(sorted(segments_dir.glob("segment_*.wav"))):
-                    info = sf.info(str(path))
-                    duration = float(info.frames) / float(info.samplerate) if info.samplerate else 0.0
-                    segments.append(AudioSegmentRef(idx, str(path), cursor, cursor + duration))
-                    cursor += duration
+                if segment_manifest.exists():
+                    manifest = json.loads(segment_manifest.read_text(encoding="utf-8"))
+                    for entry in manifest:
+                        segments.append(
+                            AudioSegmentRef(
+                                index=int(entry["index"]),
+                                path=str(entry["path"]),
+                                start_sec=float(entry["start_sec"]),
+                                end_sec=float(entry["end_sec"]),
+                            )
+                        )
+                else:
+                    import soundfile as sf
+
+                    cursor = 0.0
+                    for idx, path in enumerate(sorted(segments_dir.glob("segment_*.wav"))):
+                        info = sf.info(str(path))
+                        duration = float(info.frames) / float(info.samplerate) if info.samplerate else 0.0
+                        segments.append(AudioSegmentRef(idx, str(path), cursor, cursor + duration))
+                        cursor += duration
             else:
                 self._stage("segmentation", 0.2, progress, "Splitting audio into segments")
                 segments = self.segment_processor.create_segments(str(audio_path), str(segments_dir))
+                manifest = [
+                    {
+                        "index": segment.index,
+                        "path": segment.path,
+                        "start_sec": segment.start_sec,
+                        "end_sec": segment.end_sec,
+                    }
+                    for segment in segments
+                ]
+                segment_manifest.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
             state["stage"] = "segmented"
             state["segment_count"] = len(segments)
             self.state_manager.save(job_id, state)
@@ -177,7 +209,7 @@ class DubbingOrchestrator:
 
             stt_segments = []
             translated_segments = []
-            synthesized_files = []
+            synthesized_segments = []
 
             for idx, segment in enumerate(segments):
                 self._wait_if_paused()
@@ -191,7 +223,14 @@ class DubbingOrchestrator:
                     self.config.retry_attempts,
                 )
                 text = stt_result.get("text", "").strip()
-                stt_segments.extend(stt_result.get("segments", []))
+                for stt_segment in stt_result.get("segments", []):
+                    stt_segments.append(
+                        {
+                            **stt_segment,
+                            "start": float(stt_segment.get("start", 0.0)) + segment.start_sec,
+                            "end": float(stt_segment.get("end", 0.0)) + segment.start_sec,
+                        }
+                    )
 
                 self._stage("diarization", base_progress + 0.04, progress, f"Diarizing segment {idx + 1}/{len(segments)}")
                 diarization_segments = self._run_with_retry(
@@ -201,11 +240,15 @@ class DubbingOrchestrator:
                 )
 
                 self._stage("translation", base_progress + 0.08, progress, f"Translating segment {idx + 1}/{len(segments)}")
-                translated = self._run_with_retry(
-                    lambda txt=text: translation.translate([txt], source_language, target_language)[0],
-                    "translation",
-                    self.config.retry_attempts,
-                )
+                if not text:
+                    translated = ""
+                else:
+                    translated_batch = self._run_with_retry(
+                        lambda txt=text: translation.translate([txt], source_language, target_language),
+                        "translation",
+                        self.config.retry_attempts,
+                    )
+                    translated = translated_batch[0] if translated_batch else ""
                 translated_segments.append(
                     {
                         "index": idx,
@@ -224,6 +267,7 @@ class DubbingOrchestrator:
                         text=txt,
                         output_path=out,
                         language=target_language,
+                        speaker=self.config.default_speaker,
                     ),
                     "tts",
                     self.config.retry_attempts,
@@ -231,15 +275,28 @@ class DubbingOrchestrator:
 
                 target_duration = max(segment.end_sec - segment.start_sec, 0.1)
                 timed_output = tts_dir / f"tts_timed_{idx:04d}.wav"
-                timing.stretch_to_duration(str(tts_output), target_duration, str(timed_output))
-                synthesized_files.append(str(timed_output))
+                self._run_with_retry(
+                    lambda src=str(tts_output), dur=target_duration, out=str(timed_output): timing.stretch_to_duration(
+                        src, dur, out
+                    ),
+                    "timing",
+                    self.config.retry_attempts,
+                )
+                synthesized_segments.append((str(timed_output), segment.start_sec))
 
             from pydub import AudioSegment
+            import soundfile as sf
 
             self._stage("audio_merge", 0.84, progress, "Merging synthesized segments")
-            combined = AudioSegment.silent(duration=0)
-            for file_path in synthesized_files:
-                combined += AudioSegment.from_file(file_path)
+            total_duration_ms = int(float(metadata.get("duration", 0.0)) * 1000)
+            source_audio_info = sf.info(str(audio_path))
+            mix_sample_rate = int(source_audio_info.samplerate or self.config.stt_sample_rate)
+            combined = AudioSegment.silent(
+                duration=max(total_duration_ms, 1),
+                frame_rate=mix_sample_rate,
+            ).set_channels(1)
+            for file_path, start_sec in synthesized_segments:
+                combined = combined.overlay(AudioSegment.from_file(file_path), position=int(start_sec * 1000))
             combined.export(output_audio, format="wav")
 
             self._stage("audio_mixing", 0.9, progress, "Mixing dubbed voice with original background")
@@ -276,14 +333,18 @@ class DubbingOrchestrator:
             self._stage("completed", 1.0, progress, "Job completed")
             return state
         except Exception as exc:
-            state["status"] = "failed"
-            state["stage"] = "failed"
+            if isinstance(exc, JobCancelledError):
+                state["status"] = "cancelled"
+                state["stage"] = "cancelled"
+            else:
+                state["status"] = "failed"
+                state["stage"] = "failed"
             state["error"] = str(exc)
             self.state_manager.save(job_id, state)
             raise
         finally:
             if self.config.cleanup_intermediates and job_dir.exists() and state.get("status") == "completed":
-                keep_files = {"state.json"}
+                keep_files = {"state.json", "segment_manifest.json"}
                 for path in job_dir.rglob("*"):
                     if path.is_file() and path.name not in keep_files:
                         path.unlink(missing_ok=True)

@@ -11,6 +11,10 @@ class LogPanel(QWidget):
         self.toggle_button = QPushButton("Hide Logs")
         self.text = QTextEdit()
         self.text.setReadOnly(True)
+        self.toggle_button.setAccessibleName("Toggle processing logs")
+        self.toggle_button.setAccessibleDescription("Shows or hides the processing log output panel")
+        self.text.setAccessibleName("Processing logs")
+        self.text.setAccessibleDescription("Live processing logs with stage status and errors")
         self._visible = True
 
         self.toggle_button.clicked.connect(self.toggle)

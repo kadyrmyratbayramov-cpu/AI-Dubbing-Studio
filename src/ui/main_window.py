@@ -7,7 +7,7 @@ from pathlib import Path
 from threading import Thread
 from typing import Dict, Optional
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -54,6 +54,14 @@ class MainWindow(QMainWindow):
         self.current_video: Optional[str] = None
         self.current_result: Optional[Dict[str, object]] = None
         self.worker: Optional[Thread] = None
+        self.metadata_worker: Optional[Thread] = None
+        self._metadata_request_id = 0
+        self.signals = _MainWindowSignals()
+        self.signals.progress.connect(self._handle_progress)
+        self.signals.metadata_success.connect(self._apply_metadata_success)
+        self.signals.metadata_error.connect(self._apply_metadata_error)
+        self.signals.processing_success.connect(self._finish_success)
+        self.signals.processing_error.connect(self._finish_error)
 
         self._build_ui()
         self._apply_style()
@@ -66,10 +74,14 @@ class MainWindow(QMainWindow):
         self.addToolBar(toolbar)
         open_btn = QPushButton("Open Video")
         open_btn.clicked.connect(self.select_video)
+        open_btn.setAccessibleName("Open video file")
+        open_btn.setAccessibleDescription("Open a file picker to choose input video")
         toolbar.addWidget(open_btn)
 
         preferences_btn = QPushButton("Preferences")
         preferences_btn.clicked.connect(self.open_preferences)
+        preferences_btn.setAccessibleName("Open preferences")
+        preferences_btn.setAccessibleDescription("Open settings dialog for output and pipeline options")
         toolbar.addWidget(preferences_btn)
 
         central = QWidget()
@@ -90,6 +102,10 @@ class MainWindow(QMainWindow):
         lang_layout = QFormLayout()
         self.source_lang = QComboBox()
         self.target_lang = QComboBox()
+        self.source_lang.setAccessibleName("Source language")
+        self.source_lang.setAccessibleDescription("Language spoken in the original video audio")
+        self.target_lang.setAccessibleName("Target language")
+        self.target_lang.setAccessibleDescription("Language for generated dubbed audio")
         for label, code in LANGUAGES.items():
             self.source_lang.addItem(label, code)
             self.target_lang.addItem(label, code)
@@ -154,17 +170,20 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         self.setStatusBar(QStatusBar())
 
-        self.progress_timer = QTimer(self)
-
     def _apply_style(self) -> None:
         style_path = Path(__file__).resolve().parent / "styles" / "dark.qss"
         if style_path.exists():
             self.setStyleSheet(style_path.read_text(encoding="utf-8"))
 
     def open_preferences(self) -> None:
+        if self.worker and self.worker.is_alive():
+            QMessageBox.information(self, "Busy", "Wait for current processing job to finish before editing preferences.")
+            return
         dialog = SettingsDialog(self.config, self)
         if dialog.exec():
             dialog.apply()
+            self.config._normalize_and_create_paths()
+            self.orchestrator = DubbingOrchestrator(self.config)
             self.log_panel.append("Preferences updated")
 
     def select_video(self) -> None:
@@ -177,32 +196,59 @@ class MainWindow(QMainWindow):
         if not file_path:
             return
 
-        self.current_video = file_path
         self.video_path.setText(file_path)
         self.statusBar().showMessage("Reading metadata...")
+        self.current_video = None
+        self._metadata_request_id += 1
+        request_id = self._metadata_request_id
 
-        try:
-            metadata = self.orchestrator.ffmpeg.probe(file_path)
-            self.meta_duration.setText(f"{metadata['duration']:.2f} s")
-            self.meta_resolution.setText(str(metadata["resolution"]))
-            self.meta_codec.setText(f"V:{metadata['video_codec']} | A:{metadata['audio_codec']}")
-            self.meta_fps.setText(str(metadata["fps"]))
-            self.statusBar().showMessage("Metadata loaded")
-            self.log_panel.append(f"Loaded metadata for {file_path}")
-        except Exception as exc:
-            QMessageBox.critical(self, "Metadata Error", str(exc))
-            self.log_panel.append(f"Metadata error: {exc}")
+        def worker() -> None:
+            try:
+                metadata = self.orchestrator.ffmpeg.probe(file_path)
+                self.signals.metadata_success.emit(file_path, {"request_id": request_id, "metadata": metadata})
+            except Exception as exc:
+                self.signals.metadata_error.emit(file_path, {"request_id": request_id, "error": str(exc)})
+
+        self.metadata_worker = Thread(target=worker, daemon=True)
+        self.metadata_worker.start()
+
+    def _apply_metadata_success(self, file_path: str, payload: Dict[str, object]) -> None:
+        request_id = int(payload.get("request_id", -1))
+        if request_id != self._metadata_request_id or self.video_path.text() != file_path:
+            return
+        metadata = payload.get("metadata", {}) if isinstance(payload.get("metadata", {}), dict) else {}
+        self.current_video = file_path
+        self.meta_duration.setText(f"{float(metadata.get('duration', 0.0)):.2f} s")
+        self.meta_resolution.setText(str(metadata.get("resolution", "unknown")))
+        self.meta_codec.setText(f"V:{metadata.get('video_codec', 'unknown')} | A:{metadata.get('audio_codec', 'unknown')}")
+        self.meta_fps.setText(str(metadata.get("fps", "0.0")))
+        self.statusBar().showMessage("Metadata loaded")
+        self.log_panel.append(f"Loaded metadata for {file_path}")
+
+    def _apply_metadata_error(self, file_path: str, payload: Dict[str, object]) -> None:
+        request_id = int(payload.get("request_id", -1))
+        if request_id != self._metadata_request_id or self.video_path.text() != file_path:
+            return
+        message = str(payload.get("error", "unknown error"))
+        self.current_video = None
+        self.video_path.clear()
+        self.meta_duration.setText("-")
+        self.meta_resolution.setText("-")
+        self.meta_codec.setText("-")
+        self.meta_fps.setText("-")
+        error_message = f"Failed to probe metadata for '{file_path}': {message}"
+        QMessageBox.critical(self, "Metadata Error", error_message)
+        self.log_panel.append(error_message)
 
     def _on_progress(self, stage: str, percent: float, message: str) -> None:
+        self.signals.progress.emit(stage, percent, message)
+
+    def _handle_progress(self, stage: str, percent: float, message: str) -> None:
         pct = max(0, min(100, int(percent * 100)))
-
-        def update_ui() -> None:
-            self.progress.setValue(pct)
-            self.stage_label.setText(f"{stage}: {message}")
-            self.statusBar().showMessage(message)
-            self.log_panel.append(f"[{stage}] {message}")
-
-        QTimer.singleShot(0, update_ui)
+        self.progress.setValue(pct)
+        self.stage_label.setText(f"{stage}: {message}")
+        self.statusBar().showMessage(message)
+        self.log_panel.append(f"[{stage}] {message}")
 
     def start_processing(self) -> None:
         if not self.current_video:
@@ -222,10 +268,10 @@ class MainWindow(QMainWindow):
             try:
                 result = self.orchestrator.process(self.current_video, source, target, progress=self._on_progress)
                 self.current_result = result
-                QTimer.singleShot(0, lambda: self._finish_success(result))
+                self.signals.processing_success.emit(result)
             except Exception as exc:
                 trace = traceback.format_exc()
-                QTimer.singleShot(0, lambda: self._finish_error(exc, trace))
+                self.signals.processing_error.emit(str(exc), trace)
 
         self.worker = Thread(target=worker, daemon=True)
         self.worker.start()
@@ -244,6 +290,9 @@ class MainWindow(QMainWindow):
 
     def cancel_processing(self) -> None:
         self.orchestrator.cancel()
+        self.pause_btn.setEnabled(False)
+        self.resume_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(False)
         self.statusBar().showMessage("Cancelling...")
 
     def _finish_success(self, result: Dict[str, object]) -> None:
@@ -265,15 +314,15 @@ class MainWindow(QMainWindow):
         )
         self.log_panel.append("Processing completed successfully")
 
-    def _finish_error(self, exc: Exception, trace: str) -> None:
+    def _finish_error(self, error_message: str, trace: str) -> None:
         self.start_btn.setEnabled(True)
         self.pause_btn.setEnabled(False)
         self.resume_btn.setEnabled(False)
         self.cancel_btn.setEnabled(False)
         self.stage_label.setText("Failed")
-        self.log_panel.append(f"ERROR: {exc}")
+        self.log_panel.append(f"ERROR: {error_message}")
         self.log_panel.append(trace)
-        QMessageBox.critical(self, "Processing failed", str(exc))
+        QMessageBox.critical(self, "Processing failed", error_message)
 
 
 def launch_app(config) -> int:
@@ -281,3 +330,11 @@ def launch_app(config) -> int:
     window = MainWindow(config)
     window.show()
     return app.exec()
+
+
+class _MainWindowSignals(QObject):
+    progress = pyqtSignal(str, float, str)
+    metadata_success = pyqtSignal(str, object)
+    metadata_error = pyqtSignal(str, object)
+    processing_success = pyqtSignal(object)
+    processing_error = pyqtSignal(str, str)

@@ -14,6 +14,7 @@ class Config:
     def __init__(self, config_file: Optional[str] = None):
         self.repo_root = Path(__file__).resolve().parents[2]
         self.config_file = Path(config_file) if config_file else self.repo_root / "config" / "config.yaml"
+        self.config_base_dir = self.config_file.parent if config_file else self.repo_root
 
         # Legacy-compatible defaults
         self.sample_rate = 22050
@@ -61,7 +62,7 @@ class Config:
 
     def resolve_path(self, path_value: str) -> Path:
         path = Path(path_value)
-        return path if path.is_absolute() else (self.repo_root / path).resolve()
+        return path if path.is_absolute() else (self.config_base_dir / path).resolve()
 
     def _normalize_and_create_paths(self) -> None:
         self.model_dir = str(self.resolve_path(str(self.model_dir)))
