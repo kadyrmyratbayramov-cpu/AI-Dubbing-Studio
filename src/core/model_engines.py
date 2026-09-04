@@ -188,8 +188,13 @@ class TranslationEngine:
         try:
             import torch
 
+            target_device = "cuda" if self.gpu.cuda_available() else "cpu"
+            model_device = next(self.model.parameters()).device.type
+            if model_device != target_device:
+                self.model.to(target_device)
+
             inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512)
-            device = "cuda" if self.gpu.cuda_available() else "cpu"
+            device = next(self.model.parameters()).device
             inputs = {k: v.to(device) for k, v in inputs.items()}
             with torch.no_grad():
                 output_tokens = self.model.generate(**inputs, max_new_tokens=512)
@@ -197,6 +202,7 @@ class TranslationEngine:
         except RuntimeError as exc:
             if "CUDA" in str(exc).upper():
                 LOGGER.warning("Translation CUDA failure for %s, retrying on CPU", pair)
+                self.unload()
                 self.gpu.force_cpu = True
                 return self.translate_texts(texts, source_lang, target_lang)
             raise

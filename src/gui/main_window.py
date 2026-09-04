@@ -346,6 +346,10 @@ class MainWindow(QMainWindow):
             self.output_path.setText(selected)
 
     def start_processing(self) -> None:
+        if self.worker is not None and self.worker.isRunning():
+            self._show_error("A job is already running. Please wait for it to finish.")
+            return
+
         video = self.video_path.text().strip()
         output = self.output_path.text().strip()
         if not video:
@@ -362,6 +366,7 @@ class MainWindow(QMainWindow):
         self.worker.log_signal.connect(self.append_log)
         self.worker.finished_signal.connect(self.on_complete)
         self.worker.failed_signal.connect(self.on_failed)
+        self.start_btn.setEnabled(False)
         self.worker.start()
 
     def on_progress(self, progress: float, stage: str, message: str) -> None:
@@ -378,6 +383,7 @@ class MainWindow(QMainWindow):
         self.log_panel.append(f"[{severity}] {message}")
 
     def on_complete(self, result: dict) -> None:
+        self.start_btn.setEnabled(True)
         self.append_log("INFO", f"Completed job {result.get('job_id')}")
         self.refresh_history()
         self.stage_label.setText("Stage: done")
@@ -385,6 +391,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Dubbing completed", 5000)
 
     def on_failed(self, error: str) -> None:
+        self.start_btn.setEnabled(True)
         self.append_log("ERROR", error)
         self.refresh_history()
         msg = QMessageBox(self)
@@ -417,13 +424,27 @@ class MainWindow(QMainWindow):
             self.history_list.addItem(label)
 
     def open_settings(self) -> None:
+        if self.worker is not None and self.worker.isRunning():
+            self._show_error("Cannot change settings while a job is running.")
+            return
         dialog = SettingsDialog(self.config, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
+            current_pair = self.lang_combo.currentData()
             dialog.apply()
             self.pipeline = DubbingPipeline(self.config)
             self.lang_combo.clear()
+            restored_index = -1
             for src, tgt in self.config.language_pairs():
                 self.lang_combo.addItem(f"{src} → {tgt}", (src, tgt))
+                if current_pair == (src, tgt):
+                    restored_index = self.lang_combo.count() - 1
+            if self.lang_combo.count() == 0:
+                self.lang_combo.addItem("en → es", ("en", "es"))
+                self.lang_combo.setCurrentIndex(0)
+            elif restored_index >= 0:
+                self.lang_combo.setCurrentIndex(restored_index)
+            else:
+                self.lang_combo.setCurrentIndex(0)
 
     def _show_error(self, text: str) -> None:
         logging.error(text)

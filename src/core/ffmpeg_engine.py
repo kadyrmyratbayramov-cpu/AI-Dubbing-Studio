@@ -53,7 +53,7 @@ class FFmpegEngine:
             "-v",
             "error",
             "-show_entries",
-            "stream=index,codec_type,codec_name,width,height,r_frame_rate,channels,sample_rate,bit_rate:format=duration,bit_rate",
+            "stream=index,codec_type,codec_name,width,height,r_frame_rate,channels,sample_rate,bit_rate:stream_tags=language:format=duration,bit_rate",
             "-of",
             "json",
             input_path,
@@ -171,7 +171,8 @@ class FFmpegEngine:
         if not segment_paths:
             raise FFmpegError("No segments to merge")
         concat_file = Path(output_wav).with_suffix(".concat.txt")
-        concat_file.write_text("\n".join([f"file '{Path(p).as_posix()}'" for p in segment_paths]), encoding="utf-8")
+        escaped_paths = [Path(p).as_posix().replace("'", "'\\''") for p in segment_paths]
+        concat_file.write_text("\n".join([f"file '{p}'" for p in escaped_paths]), encoding="utf-8")
 
         command = [
             self.ffmpeg_path,

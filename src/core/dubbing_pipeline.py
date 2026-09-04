@@ -21,7 +21,7 @@ from src.core.model_engines import DiarizationEngine, TranslationEngine, TtsEngi
 from src.core.timing_engine import TimingEngine
 from src.core.types import PipelineStatus, Segment, SegmentResult
 from src.models.voice_synthesis import VoiceSynthesis
-from src.utils.validators import validate_input_file
+from src.utils.validators import validate_input_file, validate_output_path
 
 
 LOGGER = logging.getLogger(__name__)
@@ -88,6 +88,7 @@ class DubbingPipeline:
     ) -> Dict[str, Any]:
         validate_input_file(input_file)
         output_path = output_file or str(Path(self.config.output_dir) / (Path(input_file).stem + "_dubbed.mp4"))
+        validate_output_path(output_path)
 
         job = self.job_store.new_job()
         start_ts = time.time()
@@ -227,8 +228,6 @@ class DubbingPipeline:
             transcript_path.write_text(json.dumps(transcript_payload, indent=2), encoding="utf-8")
 
             emit_progress(85.0, "mixing")
-            merged_speech = str(job.artifacts_dir / "speech_merged.wav")
-            ffmpeg.merge_audio_segments([x.synthesized_path for x in segment_results], merged_speech)
 
             background_wav = str(job.artifacts_dir / "background.wav")
             ffmpeg.extract_audio(
@@ -241,7 +240,14 @@ class DubbingPipeline:
             )
 
             mixed_wav = str(job.artifacts_dir / "dubbed_mix.wav")
-            self.mixer.mix_with_ducking([merged_speech], background_wav, mixed_wav)
+            self.mixer.mix_with_ducking(
+                [
+                    {"path": result.synthesized_path, "start": result.segment.start}
+                    for result in segment_results
+                ],
+                background_wav,
+                mixed_wav,
+            )
 
             emit_progress(95.0, "final_mux")
             ffmpeg.mux_audio_with_video(
@@ -249,7 +255,7 @@ class DubbingPipeline:
                 mixed_wav,
                 output_path,
                 duration_hint=metadata.duration,
-                progress=lambda p, s: emit_progress(95.0 + p * 0.05, s),
+                progress=lambda p, s: emit_progress(95.0 + (p / 100.0) * 5.0, s),
             )
 
             state["status"] = "completed"

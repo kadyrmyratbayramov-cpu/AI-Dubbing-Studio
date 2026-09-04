@@ -19,10 +19,13 @@ def validate_input_file(file_path: str) -> bool:
 
 def validate_output_path(file_path: str) -> bool:
     path = Path(file_path)
+    raw_directory = os.path.dirname(file_path)
+    if not raw_directory:
+        return True
     directory = path.parent
-    if directory and not directory.exists():
-        directory.mkdir(parents=True, exist_ok=True)
-    if directory and not os.access(directory, os.W_OK):
+    if not directory.exists():
+        raise FileNotFoundError(f"Output directory does not exist: {directory}")
+    if not os.access(directory, os.W_OK):
         raise PermissionError(f"Output directory is not writable: {directory}")
     return True
 

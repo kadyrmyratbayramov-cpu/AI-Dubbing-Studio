@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List
+from typing import Any, List
 
 import numpy as np
 
@@ -10,7 +10,7 @@ import numpy as np
 class AudioMixingEngine:
     def mix_with_ducking(
         self,
-        dubbed_segments: List[str],
+        dubbed_segments: List[Any],
         background_wav: str,
         output_wav: str,
         ducking_db: float = -10.0,
@@ -25,7 +25,15 @@ class AudioMixingEngine:
         speech_track = np.zeros_like(mixed)
 
         cursor = 0
-        for segment_path in dubbed_segments:
+        for item in dubbed_segments:
+            if isinstance(item, dict):
+                segment_path = str(item.get("path"))
+                start_seconds = float(item.get("start", 0.0))
+                start_idx = int(start_seconds * sr)
+            else:
+                segment_path = str(item)
+                start_idx = cursor
+
             seg_audio, seg_sr = sf.read(segment_path)
             if seg_sr != sr:
                 raise RuntimeError(f"Sample rate mismatch between background ({sr}) and segment ({seg_sr})")
@@ -33,18 +41,18 @@ class AudioMixingEngine:
             if seg_audio.ndim == 1:
                 seg_audio = np.stack([seg_audio, seg_audio], axis=1)
 
-            end = min(cursor + seg_audio.shape[0], speech_track.shape[0])
-            if end <= cursor:
-                break
-            speech_track[cursor:end] += seg_audio[: end - cursor]
+            end = min(start_idx + seg_audio.shape[0], speech_track.shape[0])
+            if end <= start_idx:
+                continue
+            speech_track[start_idx:end] += seg_audio[: end - start_idx]
 
-            energy = np.mean(np.abs(seg_audio[: end - cursor]), axis=1)
+            energy = np.mean(np.abs(seg_audio[: end - start_idx]), axis=1)
             voice_active = energy > 0.01
             if np.any(voice_active):
                 reduction = 10 ** (ducking_db / 20.0)
                 for i, active in enumerate(voice_active):
-                    if active and cursor + i < mixed.shape[0]:
-                        mixed[cursor + i] *= reduction
+                    if active and start_idx + i < mixed.shape[0]:
+                        mixed[start_idx + i] *= reduction
 
             cursor = end
 
