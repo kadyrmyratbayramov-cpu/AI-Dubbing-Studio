@@ -73,7 +73,7 @@ def test_api_server_health_endpoint():
         thread.join(timeout=5)
 
 
-def test_web_server_renders_frontend():
+def test_web_server_renders_frontend_routes():
     application = create_application()
     server = create_web_server(
         host="127.0.0.1",
@@ -89,11 +89,16 @@ def test_web_server_renders_frontend():
             server.server_address[1],
             timeout=5,
         )
-        connection.request("GET", "/")
+        connection.request("GET", "/index.html?refresh=1")
         response = connection.getresponse()
         body = response.read().decode("utf-8")
         assert response.status == 200
         assert "AI Dubbing Studio" in body
+
+        connection.request("GET", "/missing")
+        missing_response = connection.getresponse()
+        missing_response.read()
+        assert missing_response.status == 404
     finally:
         connection.close()
         server.shutdown()

@@ -6,6 +6,7 @@ from html import escape
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional, Type
+from urllib.parse import urlparse
 
 from app.factory import Application, create_application
 
@@ -35,7 +36,8 @@ class WebRequestHandler(BaseHTTPRequestHandler):
     application: Application
 
     def do_GET(self) -> None:  # noqa: N802
-        if self.path not in {"/", "/index.html"}:
+        path = urlparse(self.path).path
+        if path not in {"/", "/index.html"}:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         body = render_index_page(self.application).encode("utf-8")

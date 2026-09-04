@@ -15,6 +15,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
 DEFAULT_ENVIRONMENT = "development"
 ENV_PREFIX = "AI_DUBBING_"
+CONFIG_SECTIONS = {
+    "audio",
+    "model",
+    "processing",
+    "output",
+    "dubbing",
+    "runtime",
+}
 
 
 @dataclass
@@ -120,8 +128,8 @@ def _resolve_config_path(config_path: Optional[str]) -> Optional[Path]:
 
 def _apply_config_file(config: Config, config_path: Path) -> Dict[str, Any]:
     payload = _read_config_file(config_path)
-    flat_payload = _flatten_mapping(payload)
-    return _apply_mapping(config, flat_payload)
+    section_payload = _extract_section_values(payload)
+    return _apply_mapping(config, section_payload)
 
 
 def _read_config_file(config_path: Path) -> Dict[str, Any]:
@@ -141,14 +149,14 @@ def _read_config_file(config_path: Path) -> Dict[str, Any]:
     raise ValueError(f"Unsupported configuration format: {config_path.suffix}")
 
 
-def _flatten_mapping(data: Dict[str, Any]) -> Dict[str, Any]:
-    flattened: Dict[str, Any] = {}
+def _extract_section_values(data: Dict[str, Any]) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {}
     for key, value in data.items():
-        if isinstance(value, dict):
-            flattened.update(_flatten_mapping(value))
+        if key in CONFIG_SECTIONS and isinstance(value, dict):
+            payload.update(value)
         else:
-            flattened[key] = value
-    return flattened
+            payload[key] = value
+    return payload
 
 
 def _apply_mapping(config: Config, payload: Dict[str, Any]) -> Dict[str, Any]:
