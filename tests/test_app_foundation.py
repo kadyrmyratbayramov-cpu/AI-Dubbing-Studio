@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from http.client import HTTPConnection
 from threading import Thread
 
+import pytest
+
 from api.server import create_server
 from app.factory import Application, create_application
-from cli.main import main as cli_main
 from src.config.settings import Config
 from web import create_web_server, render_index_page
+
+cli_module = importlib.import_module("cli.main")
 
 
 def test_create_application_loads_runtime_metadata():
@@ -24,12 +28,18 @@ def test_create_application_loads_runtime_metadata():
     assert application.log_path.exists()
 
 
+def test_create_application_rejects_missing_explicit_config():
+    with pytest.raises(FileNotFoundError):
+        create_application(config_path="missing-config.yaml")
+
+
 def test_render_index_page_contains_expected_sections():
     html = render_index_page(create_application())
 
     assert "AI Dubbing Studio" in html
     assert "/static/index.html" in html
     assert "Runnable scaffold only" in html
+    assert "Preview unavailable. Open" in html
 
 
 def test_render_index_page_escapes_metadata():
@@ -47,7 +57,7 @@ def test_render_index_page_escapes_metadata():
 
 
 def test_cli_info_outputs_json(capsys):
-    exit_code = cli_main(["info"])
+    exit_code = cli_module.main(["info"])
 
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
@@ -56,11 +66,27 @@ def test_cli_info_outputs_json(capsys):
 
 
 def test_cli_check_reports_success(capsys):
-    exit_code = cli_main(["check"])
+    exit_code = cli_module.main(["check"])
 
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "Initialized AI Dubbing Studio" in captured.out
+
+
+def test_cli_accepts_zero_port(monkeypatch):
+    recorded = {}
+
+    def fake_run_api_server(host: str, port: int, application):
+        recorded["host"] = host
+        recorded["port"] = port
+        recorded["application"] = application
+
+    monkeypatch.setattr(cli_module, "run_api_server", fake_run_api_server)
+
+    exit_code = cli_module.main(["serve-api", "--port", "0"])
+
+    assert exit_code == 0
+    assert recorded["port"] == 0
 
 
 def test_api_server_endpoints():

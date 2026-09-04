@@ -142,6 +142,10 @@ def _resolve_config_path(config_path: Optional[str]) -> Optional[Path]:
         else DEFAULT_CONFIG_PATH
     )
     if not candidate.exists():
+        if config_path:
+            raise FileNotFoundError(
+                f"Configuration file not found: {candidate}"
+            )
         return None
     return candidate.resolve()
 

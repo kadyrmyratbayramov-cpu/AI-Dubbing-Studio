@@ -77,8 +77,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         host = args.host or str(
             application.runtime_settings.get("host", "127.0.0.1")
         )
-        port = int(
-            args.port or application.runtime_settings.get("api_port", 8000)
+        port = (
+            args.port
+            if args.port is not None
+            else int(application.runtime_settings.get("api_port", 8000))
         )
         run_api_server(host=host, port=port, application=application)
         return 0
@@ -87,8 +89,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         host = args.host or str(
             application.runtime_settings.get("host", "127.0.0.1")
         )
-        port = int(
-            args.port or application.runtime_settings.get("web_port", 8080)
+        port = (
+            args.port
+            if args.port is not None
+            else int(application.runtime_settings.get("web_port", 8080))
         )
         run_web_frontend(host=host, port=port, application=application)
         return 0

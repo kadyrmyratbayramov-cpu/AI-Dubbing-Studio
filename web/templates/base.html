@@ -38,6 +38,9 @@
         border-radius: 0.75rem;
         background: #101625;
       }
+      .fallback-link {
+        color: #9cc0ff;
+      }
     </style>
   </head>
   <body>
@@ -50,7 +53,11 @@
       <iframe
         title="AI Dubbing Studio preview"
         src="{{ preview_path }}"
-      ></iframe>
+      >
+        Preview unavailable. Open
+        <a class="fallback-link" href="{{ preview_path }}">the frontend preview</a>
+        directly.
+      </iframe>
     </main>
     <footer>
       Runnable scaffold only — no AI models or external services are enabled yet.
