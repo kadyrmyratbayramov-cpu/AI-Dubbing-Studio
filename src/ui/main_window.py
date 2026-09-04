@@ -7,12 +7,14 @@ import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from src.config.settings import Config
-from src.core.job_state import JobController, PipelineEvent
+from src.core.job_state import JobController, PipelineEvent, PipelineRequest
 from src.core.orchestrator import DubbingOrchestrator
 from src.core.video_metadata import VideoMetadataReader
+
+QueueItem = Union[PipelineEvent, Dict[str, object]]
 
 
 class MainWindow:
@@ -21,7 +23,7 @@ class MainWindow:
         self.config = config
         self.orchestrator = DubbingOrchestrator(config)
         self.metadata_reader = VideoMetadataReader(config)
-        self.event_queue: "queue.Queue[PipelineEvent | Dict[str, object]]" = queue.Queue()
+        self.event_queue: "queue.Queue[QueueItem]" = queue.Queue()
         self.controller: Optional[JobController] = None
         self.worker: Optional[threading.Thread] = None
 
@@ -41,28 +43,61 @@ class MainWindow:
 
         file_frame = ttk.LabelFrame(main, text="Video Input", padding=12)
         file_frame.pack(fill=tk.X)
-        ttk.Entry(file_frame, textvariable=self.selected_file).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
-        ttk.Button(file_frame, text="Select Video", command=self.select_video).pack(side=tk.LEFT)
+        entry = ttk.Entry(file_frame, textvariable=self.selected_file)
+        entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        ttk.Button(
+            file_frame,
+            text="Select Video",
+            command=self.select_video,
+        ).pack(side=tk.LEFT)
 
         language_frame = ttk.LabelFrame(main, text="Languages", padding=12)
         language_frame.pack(fill=tk.X, pady=12)
         options = [entry["code"] for entry in self.config.available_languages]
         ttk.Label(language_frame, text="Source").grid(row=0, column=0, sticky=tk.W)
-        ttk.Combobox(language_frame, values=options, textvariable=self.source_language, state="readonly", width=18).grid(row=0, column=1, padx=(8, 20), sticky=tk.W)
+        ttk.Combobox(
+            language_frame,
+            values=options,
+            textvariable=self.source_language,
+            state="readonly",
+            width=18,
+        ).grid(row=0, column=1, padx=(8, 20), sticky=tk.W)
         ttk.Label(language_frame, text="Target").grid(row=0, column=2, sticky=tk.W)
-        ttk.Combobox(language_frame, values=options[1:], textvariable=self.target_language, state="readonly", width=18).grid(row=0, column=3, padx=(8, 0), sticky=tk.W)
+        ttk.Combobox(
+            language_frame,
+            values=options[1:],
+            textvariable=self.target_language,
+            state="readonly",
+            width=18,
+        ).grid(row=0, column=3, padx=(8, 0), sticky=tk.W)
 
         control_frame = ttk.LabelFrame(main, text="Controls", padding=12)
         control_frame.pack(fill=tk.X)
-        ttk.Button(control_frame, text="Start", command=self.start_pipeline).pack(side=tk.LEFT, padx=(0, 8))
-        ttk.Button(control_frame, text="Pause", command=self.pause_pipeline).pack(side=tk.LEFT, padx=8)
-        ttk.Button(control_frame, text="Resume", command=self.resume_pipeline).pack(side=tk.LEFT, padx=8)
-        ttk.Button(control_frame, text="Stop", command=self.stop_pipeline).pack(side=tk.LEFT, padx=8)
+        ttk.Button(control_frame, text="Start", command=self.start_pipeline).pack(
+            side=tk.LEFT,
+            padx=(0, 8),
+        )
+        ttk.Button(control_frame, text="Pause", command=self.pause_pipeline).pack(
+            side=tk.LEFT,
+            padx=8,
+        )
+        ttk.Button(control_frame, text="Resume", command=self.resume_pipeline).pack(
+            side=tk.LEFT,
+            padx=8,
+        )
+        ttk.Button(control_frame, text="Stop", command=self.stop_pipeline).pack(
+            side=tk.LEFT,
+            padx=8,
+        )
 
         status_frame = ttk.LabelFrame(main, text="Status", padding=12)
         status_frame.pack(fill=tk.X, pady=12)
         ttk.Label(status_frame, textvariable=self.status_text).pack(anchor=tk.W)
-        self.progress = ttk.Progressbar(status_frame, mode="determinate", maximum=100)
+        self.progress = ttk.Progressbar(
+            status_frame,
+            mode="determinate",
+            maximum=100,
+        )
         self.progress.pack(fill=tk.X, pady=(8, 0))
 
         metadata_frame = ttk.LabelFrame(main, text="Metadata", padding=12)
@@ -78,7 +113,10 @@ class MainWindow:
     def select_video(self) -> None:
         path = filedialog.askopenfilename(
             title="Select a video file",
-            filetypes=[("Video files", "*.mp4 *.mov *.mkv *.avi *.m4v *.webm"), ("All files", "*.*")],
+            filetypes=[
+                ("Video files", "*.mp4 *.mov *.mkv *.avi *.m4v *.webm"),
+                ("All files", "*.*"),
+            ],
         )
         if not path:
             return
@@ -94,7 +132,10 @@ class MainWindow:
 
     def start_pipeline(self) -> None:
         if self.worker and self.worker.is_alive():
-            messagebox.showinfo("Pipeline Running", "A pipeline job is already running.")
+            messagebox.showinfo(
+                "Pipeline Running",
+                "A pipeline job is already running.",
+            )
             return
         input_file = self.selected_file.get().strip()
         if not input_file:
@@ -108,12 +149,11 @@ class MainWindow:
     def _run_pipeline(self) -> None:
         try:
             result = self.orchestrator.run(
-                request=type("Request", (), {
-                    "input_file": self.selected_file.get().strip(),
-                    "source_language": self.source_language.get(),
-                    "target_language": self.target_language.get(),
-                    "output_dir": None,
-                })(),
+                request=PipelineRequest(
+                    input_file=self.selected_file.get().strip(),
+                    source_language=self.source_language.get(),
+                    target_language=self.target_language.get(),
+                ),
                 callback=self.event_queue.put,
                 controller=self.controller,
             )
@@ -157,10 +197,14 @@ class MainWindow:
     def _handle_event(self, event: PipelineEvent) -> None:
         self.progress["value"] = max(0, min(100, event.progress * 100))
         self.status_text.set(f"{event.stage}: {event.message}")
-        self.log_text.insert(tk.END, f"[{event.status}] {event.stage}: {event.message}\n")
+        self.log_text.insert(
+            tk.END,
+            f"[{event.status}] {event.stage}: {event.message}\n",
+        )
         self.log_text.see(tk.END)
-        if event.payload.get("resources"):
-            self.log_text.insert(tk.END, f"Resources: {event.payload['resources']}\n")
+        resources = event.payload.get("resources")
+        if resources:
+            self.log_text.insert(tk.END, f"Resources: {resources}\n")
             self.log_text.see(tk.END)
 
     def _render_metadata(self, metadata: Dict[str, object]) -> None:

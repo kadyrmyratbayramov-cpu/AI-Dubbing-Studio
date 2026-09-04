@@ -1,7 +1,6 @@
 """Audio utility functions."""
 
 import numpy as np
-from typing import Tuple, Optional
 
 
 class AudioUtils:

@@ -5,11 +5,17 @@ from __future__ import annotations
 import json
 import subprocess
 import time
-from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 from src.config.settings import Config
-from src.core.job_state import JobController, JobStatus, PipelineEvent, PipelineJobState, PipelineRequest, PipelineStage
+from src.core.job_state import (
+    JobController,
+    JobStatus,
+    PipelineEvent,
+    PipelineJobState,
+    PipelineRequest,
+    PipelineStage,
+)
 from src.core.media_pipeline import FFmpegMediaPipeline
 from src.models.diarization import DiarizationEngine
 from src.models.quality_control import QualityControlEngine
@@ -32,36 +38,115 @@ class DubbingOrchestrator:
         self.timing_engine = TimingEngine(config)
         self.quality_control = QualityControlEngine(config)
 
-    def run(self, request: PipelineRequest, callback: StatusCallback = None, controller: Optional[JobController] = None) -> Dict[str, object]:
+    def run(
+        self,
+        request: PipelineRequest,
+        callback: StatusCallback = None,
+        controller: Optional[JobController] = None,
+    ) -> Dict[str, object]:
         controller = controller or JobController()
         job = self._load_or_create_job(request)
         job.status = JobStatus.RUNNING.value
-        self._emit(callback, PipelineStage.PROBE, job.status, "Pipeline started", 0.0, {"resources": self._collect_resources()})
+        self._emit(
+            callback,
+            PipelineStage.PROBE,
+            job.status,
+            "Pipeline started",
+            0.0,
+            {"resources": self._collect_resources()},
+        )
 
-        metadata = self._run_stage(job, PipelineStage.PROBE, callback, controller, self.media_pipeline.probe, request.input_file)
-        job.metadata = metadata.to_dict()
+        try:
+            metadata = self._run_stage(
+                job,
+                PipelineStage.PROBE,
+                callback,
+                controller,
+                self.media_pipeline.probe,
+                request.input_file,
+            )
+            job.metadata = metadata.to_dict()
+            self._save_checkpoint(job)
+
+            qc_report = self._run_stage(
+                job,
+                PipelineStage.QUALITY_CONTROL,
+                callback,
+                controller,
+                self.quality_control.inspect_metadata,
+                metadata,
+            )
+            self._save_checkpoint(job)
+
+            transcript_preview = self._transcribe_preview(
+                job,
+                request,
+                callback,
+                controller,
+            )
+        except RuntimeError as exc:
+            if str(exc) == "Processing stopped by user":
+                job.status = JobStatus.STOPPED.value
+                self._save_checkpoint(job)
+                self._emit(
+                    callback,
+                    PipelineStage(job.stage),
+                    job.status,
+                    "Pipeline stopped",
+                    job.progress,
+                )
+                return job.to_dict()
+            raise
+
+        job.progress = 1.0
+        job.stage = PipelineStage.COMPLETE.value
+        job.status = JobStatus.COMPLETED.value
+        result = {
+            "status": job.status,
+            "stage": job.stage,
+            "metadata": job.metadata,
+            "quality_control": qc_report,
+            "transcript_preview": transcript_preview,
+            "resources": self._collect_resources(),
+        }
         self._save_checkpoint(job)
+        self._emit(
+            callback,
+            PipelineStage.COMPLETE,
+            job.status,
+            "Analysis pipeline completed",
+            1.0,
+            result,
+        )
+        return result
 
-        qc_report = self._run_stage(job, PipelineStage.QUALITY_CONTROL, callback, controller, self.quality_control.inspect_metadata, metadata)
-        self._save_checkpoint(job)
-
+    def _transcribe_preview(
+        self,
+        job: PipelineJobState,
+        request: PipelineRequest,
+        callback: StatusCallback,
+        controller: JobController,
+    ) -> List[Dict[str, object]]:
         transcript_preview: List[Dict[str, object]] = []
         segment_limit = max(1, int(self.config.max_transcription_segments))
-        for segment in self.media_pipeline.iter_audio_segments(request.input_file, self.config.workspace_dir):
+        for segment in self.media_pipeline.iter_audio_segments(
+            request.input_file,
+            self.config.workspace_dir,
+        ):
             self._wait_if_paused(job, callback, controller)
             if controller.should_stop():
-                job.status = JobStatus.STOPPED.value
-                job.stage = PipelineStage.TRANSCRIBE.value
-                self._save_checkpoint(job)
-                self._emit(callback, PipelineStage.TRANSCRIBE, job.status, "Pipeline stopped", job.progress)
-                return job.to_dict()
+                raise RuntimeError("Processing stopped by user")
+            progress = min(0.55, 0.15 + (segment.index * 0.05))
             self._emit(
                 callback,
                 PipelineStage.EXTRACT,
                 job.status,
                 f"Prepared audio segment {segment.index + 1}",
-                min(0.55, 0.15 + (segment.index * 0.05)),
-                {"segment_path": segment.path, "start_seconds": segment.start_seconds},
+                progress,
+                {
+                    "segment_path": segment.path,
+                    "start_seconds": segment.start_seconds,
+                },
             )
             transcription = self._run_stage(
                 job,
@@ -74,27 +159,25 @@ class DubbingOrchestrator:
             )
             transcript_preview.extend(transcription["segments"])
             job.transcript_preview = transcript_preview
-            job.progress = min(0.85, 0.55 + ((segment.index + 1) / segment_limit) * 0.3)
+            job.progress = min(
+                0.85,
+                0.55 + ((segment.index + 1) / segment_limit) * 0.3,
+            )
             self._save_checkpoint(job)
             if segment.index + 1 >= segment_limit:
                 break
+        return transcript_preview
 
-        job.progress = 1.0
-        job.stage = PipelineStage.COMPLETE.value
-        job.status = JobStatus.COMPLETED.value
-        result = {
-            "status": job.status,
-            "stage": job.stage,
-            "metadata": job.metadata,
-            "quality_control": qc_report,
-            "transcript_preview": job.transcript_preview,
-            "resources": self._collect_resources(),
-        }
-        self._save_checkpoint(job)
-        self._emit(callback, PipelineStage.COMPLETE, job.status, "Analysis pipeline completed", 1.0, result)
-        return result
-
-    def _run_stage(self, job: PipelineJobState, stage: PipelineStage, callback: StatusCallback, controller: JobController, func, *args, **kwargs):
+    def _run_stage(
+        self,
+        job: PipelineJobState,
+        stage: PipelineStage,
+        callback: StatusCallback,
+        controller: JobController,
+        func,
+        *args,
+        **kwargs,
+    ):
         attempts = 0
         while True:
             self._wait_if_paused(job, callback, controller)
@@ -105,10 +188,24 @@ class DubbingOrchestrator:
                 job.stage = stage.value
                 job.attempts[stage.value] = attempts
                 progress = self._stage_progress(stage)
-                self._emit(callback, stage, job.status, f"Running {stage.value} stage", progress, {"attempt": attempts})
+                self._emit(
+                    callback,
+                    stage,
+                    job.status,
+                    f"Running {stage.value} stage",
+                    progress,
+                    {"attempt": attempts},
+                )
                 value = func(*args, **kwargs)
                 job.progress = max(job.progress, progress)
-                self._emit(callback, stage, job.status, f"Finished {stage.value} stage", max(job.progress, progress), {"attempt": attempts})
+                self._emit(
+                    callback,
+                    stage,
+                    job.status,
+                    f"Finished {stage.value} stage",
+                    max(job.progress, progress),
+                    {"attempt": attempts},
+                )
                 return value
             except Exception as exc:
                 job.last_error = str(exc)
@@ -142,22 +239,51 @@ class DubbingOrchestrator:
         with checkpoint.open("w", encoding="utf-8") as file:
             json.dump(job.to_dict(), file, indent=2)
 
-    def _emit(self, callback: StatusCallback, stage: PipelineStage, status: str, message: str, progress: float, payload: Optional[Dict[str, object]] = None) -> None:
+    def _emit(
+        self,
+        callback: StatusCallback,
+        stage: PipelineStage,
+        status: str,
+        message: str,
+        progress: float,
+        payload: Optional[Dict[str, object]] = None,
+    ) -> None:
         if callback:
-            callback(PipelineEvent(stage=stage.value, status=status, message=message, progress=progress, payload=payload or {}))
+            callback(
+                PipelineEvent(
+                    stage=stage.value,
+                    status=status,
+                    message=message,
+                    progress=progress,
+                    payload=payload or {},
+                )
+            )
 
-    def _wait_if_paused(self, job: PipelineJobState, callback: StatusCallback, controller: JobController) -> None:
+    def _wait_if_paused(
+        self,
+        job: PipelineJobState,
+        callback: StatusCallback,
+        controller: JobController,
+    ) -> None:
+        current_stage = PipelineStage(job.stage)
         while controller.is_paused() and not controller.should_stop():
             job.status = JobStatus.PAUSED.value
-            self._emit(callback, PipelineStage(job.stage), job.status, "Pipeline paused", job.progress)
+            self._emit(
+                callback,
+                current_stage,
+                job.status,
+                "Pipeline paused",
+                job.progress,
+            )
             time.sleep(0.2)
         if not controller.should_stop():
             job.status = JobStatus.RUNNING.value
 
     def _collect_resources(self) -> Dict[str, object]:
-        memory = self._memory_info()
-        gpu = self._gpu_info()
-        return {"memory": memory, "gpu": gpu}
+        return {
+            "memory": self._memory_info(),
+            "gpu": self._gpu_info(),
+        }
 
     @staticmethod
     def _memory_info() -> Dict[str, float]:
@@ -165,7 +291,10 @@ class DubbingOrchestrator:
             import psutil
 
             stats = psutil.virtual_memory()
-            return {"used_gb": round(stats.used / (1024**3), 2), "total_gb": round(stats.total / (1024**3), 2)}
+            return {
+                "used_gb": round(stats.used / (1024**3), 2),
+                "total_gb": round(stats.total / (1024**3), 2),
+            }
         except Exception:
             return {"used_gb": 0.0, "total_gb": 0.0}
 
@@ -173,7 +302,11 @@ class DubbingOrchestrator:
     def _gpu_info() -> Dict[str, Optional[float]]:
         try:
             completed = subprocess.run(
-                ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
+                [
+                    "nvidia-smi",
+                    "--query-gpu=memory.used,memory.total",
+                    "--format=csv,noheader,nounits",
+                ],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -182,7 +315,10 @@ class DubbingOrchestrator:
             return {"used_mb": None, "total_mb": None}
         first_line = (completed.stdout or "").splitlines()[0]
         used_mb, total_mb = [value.strip() for value in first_line.split(",", 1)]
-        return {"used_mb": float(used_mb), "total_mb": float(total_mb)}
+        return {
+            "used_mb": float(used_mb),
+            "total_mb": float(total_mb),
+        }
 
     @staticmethod
     def _stage_progress(stage: PipelineStage) -> float:

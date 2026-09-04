@@ -6,4 +6,10 @@ from src.core.media_pipeline import FFmpegMediaPipeline
 from src.core.orchestrator import DubbingOrchestrator
 from src.core.video_metadata import VideoMetadataReader
 
-__all__ = ["AudioProcessor", "DubbingPipeline", "DubbingOrchestrator", "FFmpegMediaPipeline", "VideoMetadataReader"]
+__all__ = [
+    "AudioProcessor",
+    "DubbingPipeline",
+    "DubbingOrchestrator",
+    "FFmpegMediaPipeline",
+    "VideoMetadataReader",
+]

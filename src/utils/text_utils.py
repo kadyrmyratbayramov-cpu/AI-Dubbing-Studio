@@ -1,7 +1,7 @@
 """Text processing utility functions."""
 
 import re
-from typing import List, Tuple
+from typing import List
 
 
 class TextUtils:

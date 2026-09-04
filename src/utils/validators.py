@@ -1,7 +1,6 @@
 """Input validation utilities."""
 
 import os
-from typing import Any
 
 
 def validate_input_file(file_path: str) -> bool:

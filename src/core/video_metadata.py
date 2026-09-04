@@ -39,7 +39,10 @@ class VideoMetadataReader:
             "-v",
             "error",
             "-show_entries",
-            "format=duration:stream=index,codec_type,codec_name,width,height,avg_frame_rate,sample_rate",
+            (
+                "format=duration:stream=index,codec_type,codec_name,"
+                "width,height,avg_frame_rate,sample_rate"
+            ),
             "-of",
             "json",
             file_path,
@@ -59,9 +62,20 @@ class VideoMetadataReader:
         data = json.loads(completed.stdout or "{}")
         return self._parse_metadata(file_path, data)
 
-    def _parse_metadata(self, file_path: str, data: Dict[str, Any]) -> VideoMetadata:
-        video_stream = next((s for s in data.get("streams", []) if s.get("codec_type") == "video"), {})
-        audio_stream = next((s for s in data.get("streams", []) if s.get("codec_type") == "audio"), {})
+    def _parse_metadata(
+        self,
+        file_path: str,
+        data: Dict[str, Any],
+    ) -> VideoMetadata:
+        streams = data.get("streams", [])
+        video_stream = next(
+            (stream for stream in streams if stream.get("codec_type") == "video"),
+            {},
+        )
+        audio_stream = next(
+            (stream for stream in streams if stream.get("codec_type") == "audio"),
+            {},
+        )
         duration_seconds = float(data.get("format", {}).get("duration") or 0.0)
         frame_rate = self._parse_frame_rate(video_stream.get("avg_frame_rate"))
         audio_sample_rate = audio_stream.get("sample_rate")

@@ -1,7 +1,7 @@
 """Audio processing and manipulation utilities."""
 
 import numpy as np
-from typing import Tuple, Optional
+from typing import Optional
 from src.config.settings import Config
 
 
