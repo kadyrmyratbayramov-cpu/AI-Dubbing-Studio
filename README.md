@@ -1,130 +1,78 @@
-# AI Dubbing Studio v1.0
+# AI Dubbing Studio
 
-An intelligent audio dubbing studio powered by artificial intelligence for automated voice synthesis and dubbing generation.
+AI Dubbing Studio is a local-first PyQt6 desktop app for end-to-end video dubbing.
 
-## Features
+## Current Capabilities
 
-- **Voice Synthesis**: AI-powered text-to-speech generation
-- **Audio Processing**: Advanced audio manipulation and enhancement
-- **Dubbing Pipeline**: Complete workflow for dubbing video content
-- **Multi-language Support**: Support for multiple languages and accents
-- **Quality Control**: Built-in validation and quality assurance
+- Modern PyQt6 desktop UI (dark theme)
+- Video picker and language pair selection
+- Real metadata extraction via `ffprobe`
+- End-to-end orchestrator with stage progress
+- FFmpeg-based audio extraction and final muxing
+- Segment-based audio processing with checkpoint state persistence
+- Retry/recovery controls (pause/resume/cancel + stage retries)
+- GPU/VRAM-aware device selection with CPU fallback
+- Real model adapters:
+  - Whisper STT
+  - pyannote speaker diarization
+  - MarianMT translation
+  - Coqui XTTS-v2 TTS
+  - Timing stretch, mixing, lip-sync markers, QC checks
 
-## Project Structure
+## Architecture
 
-```
-AI-Dubbing-Studio/
-├── src/
-│   ├── __init__.py
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── dubbing_pipeline.py
-│   │   └── audio_processor.py
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── voice_synthesis.py
-│   │   └── model_loader.py
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   ├── audio_utils.py
-│   │   ├── text_utils.py
-│   │   └── validators.py
-│   └── config/
-│       ├── __init__.py
-│       └── settings.py
+```text
+src/
+├── main.py
+├── app.py
+├── ui/
+├── media/
+├── engines/
+├── pipeline/
+├── core/
+├── models/
 ├── config/
-│   ├── __init__.py
-│   ├── config.yaml
-│   └── model_config.json
-├── tests/
-│   ├── __init__.py
-│   ├── test_core.py
-│   ├── test_utils.py
-│   └── test_models.py
-├── pyproject.toml
-├── README.md
-├── .gitignore
-└── requirements.txt
+└── utils/
 ```
 
-## Installation
+## Requirements
 
-### Prerequisites
+- Python 3.10+
+- FFmpeg + FFprobe in PATH
+- Recommended GPU: NVIDIA RTX 3070 Ti (8GB VRAM)
+- Optional but recommended: `HUGGINGFACE_TOKEN` for pyannote model access
 
-- Python 3.8+
-- pip or poetry
+## Install
 
-### Setup
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/kadyrmyratbayramov-cpu/AI-Dubbing-Studio.git
-cd AI-Dubbing-Studio
-```
-
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Or using poetry:
+## Run Desktop App
+
 ```bash
-poetry install
+python -m src.main
 ```
 
-## Quick Start
+## Quick Workflow
 
-```python
-from src.core.dubbing_pipeline import DubbingPipeline
-from src.config.settings import Config
+1. Open app.
+2. Select video file.
+3. Confirm source and target languages.
+4. Click **Start**.
+5. Track progress and logs in UI.
+6. Output video is written to `output/`.
 
-# Initialize configuration
-config = Config()
-
-# Create dubbing pipeline
-pipeline = DubbingPipeline(config)
-
-# Process audio/video
-result = pipeline.process(input_file="input.mp4")
-```
-
-## Development
-
-### Running Tests
+## Tests
 
 ```bash
 python -m pytest tests/
 ```
 
-### Code Style
+## Notes
 
-This project follows PEP 8 style guidelines. Use black for formatting:
-
-```bash
-black src/ tests/
-```
-
-## Configuration
-
-Configuration files are located in the `config/` directory:
-
-- `config.yaml`: Main configuration settings
-- `model_config.json`: Model-specific parameters
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License.
-
-## Support
-
-For issues and questions, please open an issue on GitHub.
+- The pipeline is local/offline-first.
+- Marian model coverage is implemented for common language pairs.
+- Large files are handled through segmented processing and on-disk checkpoints under `jobs/`.

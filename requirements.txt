@@ -3,13 +3,29 @@ numpy>=1.21.0
 pydantic>=1.8.0
 pyyaml>=5.4.0
 
+# Desktop UI
+PyQt6>=6.5.0
+
 # Audio processing
 librosa>=0.9.0
 soundfile>=0.11.0
 scipy>=1.7.0
+pydub>=0.25.1
 
 # Network and utilities
 requests>=2.26.0
+ffmpeg-python>=0.2.0
+opencv-python>=4.8.0
+pillow>=10.0.0
+tqdm>=4.66.0
+
+# AI engines
+transformers>=4.37.0
+torch>=2.1.0
+torchaudio>=2.1.0
+openai-whisper>=20240930
+pyannote.audio>=3.2.0
+TTS>=0.22.0
 
 # Development dependencies (optional)
 pytest>=6.2.0

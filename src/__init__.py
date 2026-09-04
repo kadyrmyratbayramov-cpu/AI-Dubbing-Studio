@@ -1,6 +1,6 @@
-"""AI Dubbing Studio - Intelligent audio dubbing and voice synthesis."""
+"""AI Dubbing Studio package."""
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "AI Dubbing Studio Team"
 
 from src.core.dubbing_pipeline import DubbingPipeline
