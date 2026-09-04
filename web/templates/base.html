@@ -31,17 +31,12 @@
         background: #253352;
         margin-right: 0.75rem;
       }
-      .card {
-        background: #151d31;
+      iframe {
+        width: 100%;
+        min-height: 720px;
         border: 1px solid #253352;
         border-radius: 0.75rem;
-        padding: 1rem 1.25rem;
-        margin-top: 1rem;
-      }
-      code {
-        background: #253352;
-        padding: 0.2rem 0.4rem;
-        border-radius: 0.3rem;
+        background: #101625;
       }
     </style>
   </head>
@@ -51,7 +46,12 @@
       <span class="badge">{{ environment }}</span>
       <span class="badge">v{{ version }}</span>
     </header>
-    {{ content }}
+    <main>
+      <iframe
+        title="AI Dubbing Studio preview"
+        src="{{ preview_path }}"
+      ></iframe>
+    </main>
     <footer>
       Runnable scaffold only — no AI models or external services are enabled yet.
     </footer>

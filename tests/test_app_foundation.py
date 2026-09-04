@@ -28,7 +28,7 @@ def test_render_index_page_contains_expected_sections():
     html = render_index_page(create_application())
 
     assert "AI Dubbing Studio" in html
-    assert "serve-api" in html
+    assert "/static/index.html" in html
     assert "Runnable scaffold only" in html
 
 
@@ -63,7 +63,7 @@ def test_cli_check_reports_success(capsys):
     assert "Initialized AI Dubbing Studio" in captured.out
 
 
-def test_api_server_health_endpoint():
+def test_api_server_endpoints():
     application = create_application()
     server = create_server(host="127.0.0.1", port=0, application=application)
     thread = Thread(target=server.serve_forever, daemon=True)
@@ -77,10 +77,16 @@ def test_api_server_health_endpoint():
         )
         connection.request("GET", "/health")
         response = connection.getresponse()
-        body = response.read().decode("utf-8")
-        payload = json.loads(body)
+        health_payload = json.loads(response.read().decode("utf-8"))
         assert response.status == 200
-        assert payload["status"] == "ok"
+        assert health_payload["status"] == "ok"
+
+        connection.request("GET", "/config")
+        config_response = connection.getresponse()
+        config_payload = json.loads(config_response.read().decode("utf-8"))
+        assert config_response.status == 200
+        assert "paths" not in config_payload
+        assert config_payload["audio"]["sample_rate"] == 22050
     finally:
         connection.close()
         server.shutdown()
@@ -108,7 +114,7 @@ def test_web_server_renders_frontend_routes():
         response = connection.getresponse()
         body = response.read().decode("utf-8")
         assert response.status == 200
-        assert "AI Dubbing Studio" in body
+        assert "/static/index.html" in body
 
         connection.request("GET", "/missing")
         missing_response = connection.getresponse()

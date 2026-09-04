@@ -31,7 +31,7 @@ class ApplicationRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/config":
-            self._send_json(self.application.to_metadata())
+            self._send_json(self._public_config())
             return
 
         if parsed.path in {"/", "/index.html"}:
@@ -58,6 +58,21 @@ class ApplicationRequestHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args: object) -> None:  # noqa: A003
         return
+
+    def _public_config(self) -> dict:
+        return {
+            "application": self.application.name,
+            "environment": self.application.environment,
+            "debug": bool(self.application.config.debug),
+            "audio": {
+                "sample_rate": self.application.config.sample_rate,
+                "channels": self.application.config.channels,
+            },
+            "defaults": {
+                "voice": self.application.config.default_voice,
+                "speaker": self.application.config.default_speaker,
+            },
+        }
 
     def _send_json(
         self,

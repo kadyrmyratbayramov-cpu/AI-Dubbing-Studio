@@ -17,12 +17,11 @@ def render_index_page(application: Optional[Application] = None) -> str:
     base_template = (app.templates_path / "base.html").read_text(
         encoding="utf-8"
     )
-    content = (app.static_path / "index.html").read_text(encoding="utf-8")
     placeholders = {
         "{{ title }}": escape(app.name),
         "{{ environment }}": escape(app.environment),
         "{{ version }}": escape(app.version),
-        "{{ content }}": content,
+        "{{ preview_path }}": "/static/index.html",
     }
     rendered = base_template
     for placeholder, value in placeholders.items():
