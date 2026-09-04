@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import re
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -54,17 +56,22 @@ class PipelineJobState:
     input_file: str
     source_language: str
     target_language: str
+    output_dir: Optional[str] = None
     status: str = JobStatus.IDLE.value
     stage: str = PipelineStage.IDLE.value
     progress: float = 0.0
     attempts: Dict[str, int] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
     transcript_preview: List[Dict[str, Any]] = field(default_factory=list)
+    completed_segments: List[int] = field(default_factory=list)
     last_error: Optional[str] = None
 
     def checkpoint_path(self, checkpoint_dir: str) -> Path:
-        safe_name = Path(self.input_file).stem.replace(" ", "_")
-        return Path(checkpoint_dir) / f"{safe_name}.json"
+        stem = Path(self.input_file).stem.replace(" ", "_") or "job"
+        safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", stem).strip("._") or "job"
+        normalized = str(Path(self.input_file).resolve())
+        suffix = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:12]
+        return Path(checkpoint_dir) / f"{safe_name}-{suffix}.json"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -75,6 +82,7 @@ class PipelineJobState:
             input_file=request.input_file,
             source_language=request.source_language,
             target_language=request.target_language,
+            output_dir=request.output_dir,
         )
 
 

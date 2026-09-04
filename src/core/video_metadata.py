@@ -57,6 +57,11 @@ class VideoMetadataReader:
             )
         except FileNotFoundError as exc:
             raise RuntimeError("ffprobe was not found on PATH") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                "ffprobe timed out after "
+                f"{self.config.video_probe_timeout_seconds} seconds"
+            ) from exc
         except subprocess.CalledProcessError as exc:
             raise RuntimeError(exc.stderr.strip() or "ffprobe failed") from exc
         data = json.loads(completed.stdout or "{}")

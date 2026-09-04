@@ -25,6 +25,11 @@ from src.models.timing_engine import TimingEngine
 from src.models.translation import TranslationEngine
 
 StatusCallback = Optional[Callable[[PipelineEvent], None]]
+RESUMABLE_STATUSES = {
+    JobStatus.PAUSED.value,
+    JobStatus.RUNNING.value,
+    JobStatus.STOPPED.value,
+}
 
 
 class DubbingOrchestrator:
@@ -90,7 +95,7 @@ class DubbingOrchestrator:
                 self._save_checkpoint(job)
                 self._emit(
                     callback,
-                    PipelineStage(job.stage),
+                    self._safe_stage(job.stage),
                     job.status,
                     "Pipeline stopped",
                     job.progress,
@@ -127,12 +132,14 @@ class DubbingOrchestrator:
         callback: StatusCallback,
         controller: JobController,
     ) -> List[Dict[str, object]]:
-        transcript_preview: List[Dict[str, object]] = []
+        transcript_preview: List[Dict[str, object]] = list(job.transcript_preview)
         segment_limit = max(1, int(self.config.max_transcription_segments))
         for segment in self.media_pipeline.iter_audio_segments(
             request.input_file,
             self.config.workspace_dir,
         ):
+            if segment.index in job.completed_segments:
+                continue
             self._wait_if_paused(job, callback, controller)
             if controller.should_stop():
                 raise RuntimeError("Processing stopped by user")
@@ -159,12 +166,13 @@ class DubbingOrchestrator:
             )
             transcript_preview.extend(transcription["segments"])
             job.transcript_preview = transcript_preview
+            job.completed_segments.append(segment.index)
             job.progress = min(
                 0.85,
-                0.55 + ((segment.index + 1) / segment_limit) * 0.3,
+                0.55 + (len(job.completed_segments) / segment_limit) * 0.3,
             )
             self._save_checkpoint(job)
-            if segment.index + 1 >= segment_limit:
+            if len(job.completed_segments) >= segment_limit:
                 break
         return transcript_preview
 
@@ -209,11 +217,14 @@ class DubbingOrchestrator:
                 return value
             except Exception as exc:
                 job.last_error = str(exc)
-                retryable = attempts <= self.config.max_stage_retries
+                retryable = (attempts - 1) < self.config.max_stage_retries
+                stage_status = (
+                    JobStatus.RUNNING.value if retryable else JobStatus.FAILED.value
+                )
                 self._emit(
                     callback,
                     stage,
-                    JobStatus.RUNNING.value if retryable else JobStatus.FAILED.value,
+                    stage_status,
                     f"{stage.value} failed: {exc}",
                     job.progress,
                     {"attempt": attempts, "retrying": retryable},
@@ -230,7 +241,23 @@ class DubbingOrchestrator:
         if checkpoint.exists():
             with checkpoint.open("r", encoding="utf-8") as file:
                 stored = json.load(file)
-            return PipelineJobState(**stored)
+            if stored.get("status") in RESUMABLE_STATUSES:
+                merged = {**stored, **job.to_dict()}
+                persisted_keys = (
+                    "status",
+                    "stage",
+                    "progress",
+                    "attempts",
+                    "metadata",
+                    "transcript_preview",
+                    "completed_segments",
+                    "output_dir",
+                    "last_error",
+                )
+                for key in persisted_keys:
+                    if key in stored:
+                        merged[key] = stored[key]
+                return PipelineJobState(**merged)
         return job
 
     def _save_checkpoint(self, job: PipelineJobState) -> None:
@@ -265,7 +292,7 @@ class DubbingOrchestrator:
         callback: StatusCallback,
         controller: JobController,
     ) -> None:
-        current_stage = PipelineStage(job.stage)
+        current_stage = self._safe_stage(job.stage)
         while controller.is_paused() and not controller.should_stop():
             job.status = JobStatus.PAUSED.value
             self._emit(
@@ -278,6 +305,12 @@ class DubbingOrchestrator:
             time.sleep(0.2)
         if not controller.should_stop():
             job.status = JobStatus.RUNNING.value
+
+    def _safe_stage(self, stage_value: str) -> PipelineStage:
+        try:
+            return PipelineStage(stage_value)
+        except ValueError:
+            return PipelineStage.IDLE
 
     def _collect_resources(self) -> Dict[str, object]:
         return {
@@ -295,7 +328,7 @@ class DubbingOrchestrator:
                 "used_gb": round(stats.used / (1024**3), 2),
                 "total_gb": round(stats.total / (1024**3), 2),
             }
-        except Exception:
+        except (ImportError, AttributeError, OSError):
             return {"used_gb": 0.0, "total_gb": 0.0}
 
     @staticmethod
@@ -311,10 +344,17 @@ class DubbingOrchestrator:
                 text=True,
                 check=True,
             )
-        except Exception:
+        except (
+            FileNotFoundError,
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            OSError,
+        ):
             return {"used_mb": None, "total_mb": None}
-        first_line = (completed.stdout or "").splitlines()[0]
-        used_mb, total_mb = [value.strip() for value in first_line.split(",", 1)]
+        lines = (completed.stdout or "").splitlines()
+        if not lines:
+            return {"used_mb": None, "total_mb": None}
+        used_mb, total_mb = [value.strip() for value in lines[0].split(",", 1)]
         return {
             "used_mb": float(used_mb),
             "total_mb": float(total_mb),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,10 +39,7 @@ class FFmpegMediaPipeline:
         segment_length = max(1, int(self.config.segment_duration_seconds))
         if metadata.duration_seconds <= 0:
             raise RuntimeError("Unable to determine media duration")
-        segment_count = max(
-            1,
-            int((metadata.duration_seconds + segment_length - 1) // segment_length),
-        )
+        segment_count = max(1, math.ceil(metadata.duration_seconds / segment_length))
         for index in range(segment_count):
             start_seconds = index * segment_length
             duration_seconds = min(

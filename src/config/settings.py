@@ -41,6 +41,9 @@ class Config:
         self.max_transcription_segments = 1
         self.max_stage_retries = 2
 
+        self.source_language = "auto"
+        self.target_language = "en"
+
         self.output_dir = str(repo_root / "output")
         self.log_dir = str(repo_root / "logs")
         self.checkpoint_dir = str(repo_root / "output" / "checkpoints")
@@ -71,9 +74,24 @@ class Config:
         if config_file and os.path.exists(config_file):
             self.load_from_file(config_file)
 
+        self._normalize_runtime_paths()
         self.ensure_runtime_directories()
 
+    def _normalize_runtime_paths(self) -> None:
+        root = Path(self.repo_root)
+        for name in (
+            "model_dir",
+            "output_dir",
+            "log_dir",
+            "checkpoint_dir",
+            "workspace_dir",
+        ):
+            value = Path(getattr(self, name))
+            if not value.is_absolute():
+                setattr(self, name, str(root / value))
+
     def ensure_runtime_directories(self) -> None:
+        self._normalize_runtime_paths()
         directories = [
             self.output_dir,
             self.log_dir,
@@ -130,6 +148,8 @@ class Config:
                 "default_voice",
                 "default_speaker",
                 "stt_model_name",
+                "stt_device",
+                "stt_compute_type",
                 "translation_model_name",
                 "tts_model_name",
                 "diarization_model_name",
@@ -144,6 +164,7 @@ class Config:
                 "segment_duration_seconds",
                 "max_transcription_segments",
                 "max_stage_retries",
+                "stage_retry_backoff_seconds",
             },
             "output": {
                 "output_dir",
