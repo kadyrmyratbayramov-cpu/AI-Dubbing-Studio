@@ -27,6 +27,7 @@ class Config:
         self.default_model = "default_tts"
         self.default_voice = "en_US"
         self.default_speaker = "default"
+        self.cache_models = True
 
         # Processing settings
         self.normalize_audio = True
@@ -39,6 +40,12 @@ class Config:
         self.output_dir = "output"
         self.log_dir = "logs"
         self.debug = False
+
+        # Dubbing settings
+        self.language = "en"
+        self.target_language = "en"
+        self.voice_speed = 1.0
+        self.pitch_shift = 0.0
 
         # Load from file if provided
         if config_file and os.path.exists(config_file):
@@ -94,7 +101,20 @@ class Config:
         Args:
             config_dict: Configuration dictionary
         """
-        for key, value in config_dict.items():
+        sections = ("audio", "model", "processing", "output", "dubbing")
+
+        for section in sections:
+            section_values = config_dict.get(section)
+            if isinstance(section_values, dict):
+                self._update_flat_values(section_values)
+
+        self._update_flat_values(config_dict)
+
+    def _update_flat_values(self, values: Dict[str, Any]) -> None:
+        """Update only known top-level config attributes from flat key-value pairs."""
+        for key, value in values.items():
+            if isinstance(value, dict):
+                continue
             if hasattr(self, key):
                 setattr(self, key, value)
 

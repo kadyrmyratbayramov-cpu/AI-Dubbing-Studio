@@ -33,7 +33,6 @@ AI-Dubbing-Studio/
 │       ├── __init__.py
 │       └── settings.py
 ├── config/
-│   ├── __init__.py
 │   ├── config.yaml
 │   └── model_config.json
 ├── tests/
