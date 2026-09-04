@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title }}</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Arial, sans-serif;
+      }
+      body {
+        margin: 0;
+        background: #101625;
+        color: #f5f7fb;
+      }
+      header,
+      footer {
+        padding: 1.5rem 2rem;
+        background: #151d31;
+      }
+      main {
+        padding: 2rem;
+        max-width: 960px;
+        margin: 0 auto;
+      }
+      .badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        background: #253352;
+        margin-right: 0.75rem;
+      }
+      .card {
+        background: #151d31;
+        border: 1px solid #253352;
+        border-radius: 0.75rem;
+        padding: 1rem 1.25rem;
+        margin-top: 1rem;
+      }
+      code {
+        background: #253352;
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.3rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>{{ title }}</strong>
+      <span class="badge">{{ environment }}</span>
+      <span class="badge">v{{ version }}</span>
+    </header>
+    {{ content }}
+    <footer>
+      Runnable scaffold only — no AI models or external services are enabled yet.
+    </footer>
+  </body>
+</html>

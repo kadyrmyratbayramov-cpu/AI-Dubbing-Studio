@@ -2,48 +2,64 @@
 
 An intelligent audio dubbing studio powered by artificial intelligence for automated voice synthesis and dubbing generation.
 
+## Current Status
+
+This repository now includes a runnable application foundation on top of the existing scaffold.
+The current scope is limited to local application startup, configuration loading, backend/frontend entry points,
+and development tooling. No Whisper, TTS, translation, diarization, lip-sync, or external AI services are enabled yet.
+
 ## Features
 
-- **Voice Synthesis**: AI-powered text-to-speech generation
-- **Audio Processing**: Advanced audio manipulation and enhancement
-- **Dubbing Pipeline**: Complete workflow for dubbing video content
-- **Multi-language Support**: Support for multiple languages and accents
-- **Quality Control**: Built-in validation and quality assurance
+- **Runnable foundation**: CLI, backend skeleton, and frontend preview entry points
+- **Voice Synthesis scaffold**: Placeholder module for future text-to-speech generation
+- **Audio Processing scaffold**: Existing utilities and pipeline placeholders remain intact
+- **Development setup**: Environment template, development config, and Make targets
+- **Quality checks**: Existing tests preserved and new foundation tests added
 
 ## Project Structure
 
 ```
 AI-Dubbing-Studio/
-├── src/
+├── app/
 │   ├── __init__.py
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── dubbing_pipeline.py
-│   │   └── audio_processor.py
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── voice_synthesis.py
-│   │   └── model_loader.py
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   ├── audio_utils.py
-│   │   ├── text_utils.py
-│   │   └── validators.py
-│   └── config/
-│       ├── __init__.py
-│       └── settings.py
+│   └── factory.py
+├── api/
+│   ├── __init__.py
+│   ├── __main__.py
+│   └── server.py
+├── cli/
+│   ├── __init__.py
+│   ├── __main__.py
+│   └── main.py
 ├── config/
 │   ├── __init__.py
 │   ├── config.yaml
+│   ├── development.yaml
 │   └── model_config.json
+├── src/
+│   ├── __init__.py
+│   ├── config/
+│   ├── core/
+│   ├── models/
+│   └── utils/
 ├── tests/
 │   ├── __init__.py
+│   ├── test_app_foundation.py
 │   ├── test_core.py
-│   ├── test_utils.py
-│   └── test_models.py
-├── pyproject.toml
-├── README.md
+│   ├── test_models.py
+│   └── test_utils.py
+├── web/
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── static/
+│   │   └── index.html
+│   └── templates/
+│       └── base.html
+├── .env.example
 ├── .gitignore
+├── main.py
+├── Makefile
+├── pyproject.toml
 └── requirements.txt
 ```
 
@@ -52,78 +68,83 @@ AI-Dubbing-Studio/
 ### Prerequisites
 
 - Python 3.8+
-- pip or poetry
+- pip
 
 ### Setup
 
-1. Clone the repository:
 ```bash
 git clone https://github.com/kadyrmyratbayramov-cpu/AI-Dubbing-Studio.git
 cd AI-Dubbing-Studio
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+python -m pip install -r requirements.txt
 ```
 
-2. Create a virtual environment:
+### Environment configuration
+
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+cp .env.example .env
 ```
 
-3. Install dependencies:
+Optional runtime overrides can be provided through `.env` values or `config/development.yaml`.
+
+## Run the application
+
+### CLI metadata
+
 ```bash
-pip install -r requirements.txt
+python main.py info
 ```
 
-Or using poetry:
+### Initialization check
+
 ```bash
-poetry install
+python main.py check
 ```
 
-## Quick Start
+### Backend API skeleton
 
-```python
-from src.core.dubbing_pipeline import DubbingPipeline
-from src.config.settings import Config
+```bash
+python main.py serve-api
+```
 
-# Initialize configuration
-config = Config()
+Available routes:
 
-# Create dubbing pipeline
-pipeline = DubbingPipeline(config)
+- `GET /health`
+- `GET /config`
+- `GET /`
 
-# Process audio/video
-result = pipeline.process(input_file="input.mp4")
+### Frontend preview
+
+```bash
+python main.py serve-web
 ```
 
 ## Development
 
-### Running Tests
+### Make targets
 
 ```bash
-python -m pytest tests/
+make install
+make check
+make test
+make run-api
+make run-web
 ```
 
-### Code Style
-
-This project follows PEP 8 style guidelines. Use black for formatting:
+### Running tests
 
 ```bash
-black src/ tests/
+python -m pytest
 ```
 
 ## Configuration
 
 Configuration files are located in the `config/` directory:
 
-- `config.yaml`: Main configuration settings
-- `model_config.json`: Model-specific parameters
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License.
+- `config.yaml`: Base scaffold configuration
+- `development.yaml`: Local development overrides for the runnable foundation
+- `model_config.json`: Future model-specific parameters
 
 ## Support
 
