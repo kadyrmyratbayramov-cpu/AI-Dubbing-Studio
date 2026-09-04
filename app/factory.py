@@ -90,19 +90,25 @@ def create_application(
         env_name,
         DEFAULT_ENVIRONMENT,
     )
-    resolved_config_path = _resolve_config_path(config_path)
+    explicit_config_path = _resolve_explicit_config_path(config_path)
+    default_config_path = _resolve_optional_path(DEFAULT_CONFIG_PATH)
 
     config = Config()
     runtime_settings: Dict[str, Any] = {}
 
-    if resolved_config_path:
+    if default_config_path:
         runtime_settings.update(
-            _apply_config_file(config, resolved_config_path)
+            _apply_config_file(config, default_config_path)
         )
 
     environment_path = PROJECT_ROOT / "config" / f"{runtime_environment}.yaml"
     if environment_path.exists():
         runtime_settings.update(_apply_config_file(config, environment_path))
+
+    if explicit_config_path and explicit_config_path != default_config_path:
+        runtime_settings.update(
+            _apply_config_file(config, explicit_config_path)
+        )
 
     runtime_settings.update(_apply_environment_overrides(config))
 
@@ -110,7 +116,7 @@ def create_application(
         config=config,
         environment=runtime_environment,
         root_path=PROJECT_ROOT,
-        config_path=resolved_config_path,
+        config_path=explicit_config_path or default_config_path,
         runtime_settings=runtime_settings,
     )
     _ensure_runtime_directories(application)
@@ -135,19 +141,22 @@ def _strip_quotes(value: str) -> str:
     return value
 
 
-def _resolve_config_path(config_path: Optional[str]) -> Optional[Path]:
-    candidate = (
-        Path(config_path).expanduser()
-        if config_path
-        else DEFAULT_CONFIG_PATH
-    )
-    if not candidate.exists():
-        if config_path:
-            raise FileNotFoundError(
-                f"Configuration file not found: {candidate}"
-            )
+def _resolve_explicit_config_path(
+    config_path: Optional[str],
+) -> Optional[Path]:
+    if not config_path:
         return None
+
+    candidate = Path(config_path).expanduser()
+    if not candidate.exists():
+        raise FileNotFoundError(f"Configuration file not found: {candidate}")
     return candidate.resolve()
+
+
+def _resolve_optional_path(config_path: Path) -> Optional[Path]:
+    if not config_path.exists():
+        return None
+    return config_path.resolve()
 
 
 def _apply_config_file(config: Config, config_path: Path) -> Dict[str, Any]:

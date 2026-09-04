@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import importlib
 import json
+import sys
 from http.client import HTTPConnection
+from pathlib import Path
 from threading import Thread
 
 import pytest
@@ -31,6 +33,19 @@ def test_create_application_loads_runtime_metadata():
 def test_create_application_rejects_missing_explicit_config():
     with pytest.raises(FileNotFoundError):
         create_application(config_path="missing-config.yaml")
+
+
+def test_create_application_explicit_config_overrides_environment(tmp_path):
+    config_path = tmp_path / "override.yaml"
+    config_path.write_text(
+        "output:\n  debug: false\n  output_dir: custom-output\n",
+        encoding="utf-8",
+    )
+
+    application = create_application(config_path=str(config_path))
+
+    assert application.config.debug is False
+    assert application.config.output_dir == "custom-output"
 
 
 def test_render_index_page_contains_expected_sections():
@@ -88,6 +103,13 @@ def test_cli_accepts_zero_port(monkeypatch):
 
     assert exit_code == 0
     assert recorded["port"] == 0
+
+
+def test_module_entrypoints_import_safely():
+    for module_name in ("api.__main__", "cli.__main__", "web.__main__"):
+        sys.modules.pop(module_name, None)
+        module = importlib.import_module(module_name)
+        assert Path(module.__file__).name == "__main__.py"
 
 
 def test_api_server_endpoints():

@@ -1,3 +1,5 @@
 from cli.main import main
 
-raise SystemExit(main())
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
