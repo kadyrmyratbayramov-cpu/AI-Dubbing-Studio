@@ -40,6 +40,7 @@ def test_render_index_page_contains_expected_sections():
     assert "/static/index.html" in html
     assert "Runnable scaffold only" in html
     assert "Preview unavailable. Open" in html
+    assert "Open the frontend preview directly" in html
 
 
 def test_render_index_page_escapes_metadata():
@@ -120,8 +121,14 @@ def test_api_server_endpoints():
         thread.join(timeout=5)
 
 
-def test_web_server_renders_frontend_routes():
-    application = create_application()
+def test_web_server_renders_escaped_metadata_and_routes():
+    application = Application(
+        config=Config(),
+        environment="dev<script>",
+        root_path=create_application().root_path,
+        config_path=None,
+        runtime_settings={},
+    )
     server = create_web_server(
         host="127.0.0.1",
         port=0,
@@ -141,6 +148,8 @@ def test_web_server_renders_frontend_routes():
         body = response.read().decode("utf-8")
         assert response.status == 200
         assert "/static/index.html" in body
+        assert "dev&lt;script&gt;" in body
+        assert "dev<script>" not in body
 
         connection.request("GET", "/static/index.html")
         static_response = connection.getresponse()

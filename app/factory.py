@@ -220,8 +220,10 @@ def _coerce_value(value: str) -> Any:
     lowered = value.strip().lower()
     if lowered in {"true", "false"}:
         return lowered == "true"
-    if lowered.isdigit():
+    try:
         return int(lowered)
+    except ValueError:
+        pass
     try:
         return float(lowered)
     except ValueError:
