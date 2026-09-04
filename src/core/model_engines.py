@@ -158,6 +158,8 @@ class TranslationEngine:
 
         if self.loaded_pair == pair and self.tokenizer is not None and self.model is not None:
             return pair
+        if self.loaded_pair is not None and self.loaded_pair != pair:
+            self.unload()
 
         try:
             from transformers import AutoModelForSeq2SeqLM, AutoTokenizer

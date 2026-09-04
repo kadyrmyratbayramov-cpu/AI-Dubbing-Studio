@@ -171,8 +171,12 @@ class FFmpegEngine:
         if not segment_paths:
             raise FFmpegError("No segments to merge")
         concat_file = Path(output_wav).with_suffix(".concat.txt")
-        escaped_paths = [Path(p).as_posix().replace("'", "'\\''") for p in segment_paths]
-        concat_file.write_text("\n".join([f"file '{p}'" for p in escaped_paths]), encoding="utf-8")
+        escaped_paths = []
+        for path in segment_paths:
+            escaped = Path(path).as_posix()
+            escaped = escaped.replace("\\", "\\\\").replace(" ", "\\ ").replace("'", "\\'")
+            escaped_paths.append(escaped)
+        concat_file.write_text("\n".join([f"file {p}" for p in escaped_paths]), encoding="utf-8")
 
         command = [
             self.ffmpeg_path,
