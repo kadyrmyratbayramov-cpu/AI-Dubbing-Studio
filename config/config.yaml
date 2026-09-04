@@ -1,38 +1,44 @@
-# AI Dubbing Studio v1.0 Configuration
-
-# Audio settings
 audio:
-  sample_rate: 22050
+  sample_rate: 16000
   channels: 1
   bit_depth: 16
   frame_length: 2048
   hop_length: 512
 
-# Model settings
 model:
   model_dir: "models"
-  default_model: "default_tts"
+  default_model: "whisper-small"
   default_voice: "en_US"
   default_speaker: "default"
-  cache_models: true
+  stt_model_name: "small"
+  translation_model_name: "Helsinki-NLP/opus-mt-en-tr"
+  tts_model_name: "tts_models/multilingual/multi-dataset/xtts_v2"
+  diarization_model_name: "pyannote/speaker-diarization-3.1"
+  lipsync_model_name: "yolov8n-face.pt"
 
-# Processing settings
 processing:
   normalize_audio: true
   remove_silence: false
   silence_threshold: 0.01
   fade_in_duration: 0.1
   fade_out_duration: 0.1
+  segment_duration_seconds: 30
+  max_transcription_segments: 1
+  max_stage_retries: 2
 
-# Output settings
 output:
   output_dir: "output"
   log_dir: "logs"
+  checkpoint_dir: "output/checkpoints"
+  workspace_dir: "output/workspace"
   debug: false
 
-# Dubbing settings
+media:
+  ffmpeg_binary: "ffmpeg"
+  ffprobe_binary: "ffprobe"
+  ffmpeg_audio_codec: "pcm_s16le"
+  video_probe_timeout_seconds: 30
+
 dubbing:
-  language: "en"
+  source_language: "auto"
   target_language: "en"
-  voice_speed: 1.0
-  pitch_shift: 0.0

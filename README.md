@@ -1,130 +1,62 @@
-# AI Dubbing Studio v1.0
+# AI Dubbing Studio
 
-An intelligent audio dubbing studio powered by artificial intelligence for automated voice synthesis and dubbing generation.
+AI Dubbing Studio is a local-first desktop application for inspecting video files and running the opening stages of a real dubbing pipeline.
 
-## Features
+## Current deliverable
 
-- **Voice Synthesis**: AI-powered text-to-speech generation
-- **Audio Processing**: Advanced audio manipulation and enhancement
-- **Dubbing Pipeline**: Complete workflow for dubbing video content
-- **Multi-language Support**: Support for multiple languages and accents
-- **Quality Control**: Built-in validation and quality assurance
+This repository now includes:
+- a desktop GUI built with Tkinter/ttk
+- native video file selection
+- source and target language selection
+- start, pause, resume, and stop job controls
+- real video metadata inspection through `ffprobe`
+- FFmpeg-based chunked audio extraction for large files
+- checkpointed orchestration with retry support
+- a real Whisper adapter interface using `faster-whisper`
+- adapter scaffolding for diarization, translation, TTS, lip-sync, timing, mixing, and quality control
 
-## Project Structure
-
-```
-AI-Dubbing-Studio/
-├── src/
-│   ├── __init__.py
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── dubbing_pipeline.py
-│   │   └── audio_processor.py
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── voice_synthesis.py
-│   │   └── model_loader.py
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   ├── audio_utils.py
-│   │   ├── text_utils.py
-│   │   └── validators.py
-│   └── config/
-│       ├── __init__.py
-│       └── settings.py
-├── config/
-│   ├── __init__.py
-│   ├── config.yaml
-│   └── model_config.json
-├── tests/
-│   ├── __init__.py
-│   ├── test_core.py
-│   ├── test_utils.py
-│   └── test_models.py
-├── pyproject.toml
-├── README.md
-├── .gitignore
-└── requirements.txt
-```
+The first milestone is supported: a user can open the app, select a video, inspect metadata, and start a real analysis pipeline that progresses into transcription when the STT dependency and local model are available.
 
 ## Installation
 
-### Prerequisites
-
-- Python 3.8+
-- pip or poetry
-
-### Setup
-
-1. Clone the repository:
-```bash
-git clone https://github.com/kadyrmyratbayramov-cpu/AI-Dubbing-Studio.git
-cd AI-Dubbing-Studio
-```
-
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-Or using poetry:
-```bash
-poetry install
-```
-
-## Quick Start
-
-```python
-from src.core.dubbing_pipeline import DubbingPipeline
-from src.config.settings import Config
-
-# Initialize configuration
-config = Config()
-
-# Create dubbing pipeline
-pipeline = DubbingPipeline(config)
-
-# Process audio/video
-result = pipeline.process(input_file="input.mp4")
-```
-
-## Development
-
-### Running Tests
+### Base environment
 
 ```bash
-python -m pytest tests/
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
 ```
 
-### Code Style
-
-This project follows PEP 8 style guidelines. Use black for formatting:
+### Desktop and video metadata support
 
 ```bash
-black src/ tests/
+pip install -e .[desktop]
 ```
 
-## Configuration
+### Enable local Whisper transcription
 
-Configuration files are located in the `config/` directory:
+```bash
+pip install -e .[stt]
+```
 
-- `config.yaml`: Main configuration settings
-- `model_config.json`: Model-specific parameters
+### Full local AI stack
 
-## Contributing
+```bash
+pip install -e .[full]
+```
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## System dependencies
 
-## License
+Install `ffmpeg` and `ffprobe` and ensure they are on `PATH`.
 
-This project is licensed under the MIT License.
+## Run the desktop app
 
-## Support
+```bash
+ai-dubbing-studio
+```
 
-For issues and questions, please open an issue on GitHub.
+## Tests
+
+```bash
+python -m pytest
+```
