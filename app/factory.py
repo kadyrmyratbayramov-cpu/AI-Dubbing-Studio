@@ -13,6 +13,7 @@ from src.config.settings import Config
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
+DEFAULT_DOTENV_PATH = PROJECT_ROOT / ".env"
 DEFAULT_ENVIRONMENT = "development"
 ENV_PREFIX = "AI_DUBBING_"
 CONFIG_SECTIONS = {
@@ -83,6 +84,7 @@ def create_application(
     environment: Optional[str] = None,
 ) -> Application:
     """Create an initialized application instance."""
+    _load_dotenv(DEFAULT_DOTENV_PATH)
     env_name = f"{ENV_PREFIX}ENV"
     runtime_environment = environment or os.getenv(
         env_name,
@@ -113,6 +115,24 @@ def create_application(
     )
     _ensure_runtime_directories(application)
     return application
+
+
+def _load_dotenv(dotenv_path: Path) -> None:
+    if not dotenv_path.exists():
+        return
+
+    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), _strip_quotes(value.strip()))
+
+
+def _strip_quotes(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        return value[1:-1]
+    return value
 
 
 def _resolve_config_path(config_path: Optional[str]) -> Optional[Path]:

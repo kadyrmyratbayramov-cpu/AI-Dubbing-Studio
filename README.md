@@ -86,7 +86,7 @@ python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Optional runtime overrides can be provided through `.env` values or `config/development.yaml`.
+Optional runtime overrides can be provided through a repository-root `.env` file or `config/development.yaml`.
 
 ## Run the application
 

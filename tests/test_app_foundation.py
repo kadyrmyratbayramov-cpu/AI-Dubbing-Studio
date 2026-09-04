@@ -7,8 +7,9 @@ from http.client import HTTPConnection
 from threading import Thread
 
 from api.server import create_server
-from app.factory import create_application
+from app.factory import Application, create_application
 from cli.main import main as cli_main
+from src.config.settings import Config
 from web import create_web_server, render_index_page
 
 
@@ -29,6 +30,20 @@ def test_render_index_page_contains_expected_sections():
     assert "AI Dubbing Studio" in html
     assert "serve-api" in html
     assert "Runnable scaffold only" in html
+
+
+def test_render_index_page_escapes_metadata():
+    application = Application(
+        config=Config(),
+        environment="dev<script>",
+        root_path=create_application().root_path,
+        config_path=None,
+        runtime_settings={},
+    )
+
+    html = render_index_page(application)
+    assert "dev&lt;script&gt;" in html
+    assert "dev<script>" not in html
 
 
 def test_cli_info_outputs_json(capsys):
