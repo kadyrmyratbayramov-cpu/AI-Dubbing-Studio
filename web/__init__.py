@@ -36,18 +36,27 @@ class WebRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
-        if path not in {"/", "/index.html"}:
-            self.send_error(HTTPStatus.NOT_FOUND)
+        if path in {"/", "/index.html"}:
+            body = render_index_page(self.application).encode("utf-8")
+            self._send_html(body)
             return
-        body = render_index_page(self.application).encode("utf-8")
+        if path == "/static/index.html":
+            body = (self.application.static_path / "index.html").read_text(
+                encoding="utf-8"
+            ).encode("utf-8")
+            self._send_html(body)
+            return
+        self.send_error(HTTPStatus.NOT_FOUND)
+
+    def log_message(self, format: str, *args: object) -> None:  # noqa: A003
+        return
+
+    def _send_html(self, body: bytes) -> None:
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
-
-    def log_message(self, format: str, *args: object) -> None:  # noqa: A003
-        return
 
 
 def build_web_handler(application: Application) -> Type[WebRequestHandler]:

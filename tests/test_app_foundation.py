@@ -116,6 +116,12 @@ def test_web_server_renders_frontend_routes():
         assert response.status == 200
         assert "/static/index.html" in body
 
+        connection.request("GET", "/static/index.html")
+        static_response = connection.getresponse()
+        static_body = static_response.read().decode("utf-8")
+        assert static_response.status == 200
+        assert "Available run modes" in static_body
+
         connection.request("GET", "/missing")
         missing_response = connection.getresponse()
         missing_response.read()
